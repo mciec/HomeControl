@@ -1,0 +1,21 @@
+{
+  "Version": 1,
+  "ProjectMap": {
+    "6de5f6db-0f92-4554-a91c-5d5002d6d23a": {
+      "ProjectGuid": "6de5f6db-0f92-4554-a91c-5d5002d6d23a",
+      "DisplayName": "MqttBroker",
+      "ColorIndex": 0
+    },
+    "1601e1bf-6983-4d05-8845-36623b9dc181": {
+      "ProjectGuid": "1601e1bf-6983-4d05-8845-36623b9dc181",
+      "DisplayName": "Config",
+      "ColorIndex": 1
+    },
+    "a2fe74e1-b743-11d0-ae1a-00a0c90fffc3": {
+      "ProjectGuid": "a2fe74e1-b743-11d0-ae1a-00a0c90fffc3",
+      "DisplayName": "Miscellaneous Files",
+      "ColorIndex": -1
+    }
+  },
+  "NextColorIndex": 2
+}

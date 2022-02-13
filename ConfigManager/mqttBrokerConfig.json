@@ -1,0 +1,56 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+
+  "SimpleMqttServer": {
+    "ServiceName": "Simple MQTT broker PROD",
+    "Port": 1883,
+    "Users": [
+      {
+        "Name": "mciec",
+        "Password": "a"
+      }
+    ],
+    "DelayInMilliSeconds": 30000,
+    "TlsPort": 8883
+  },
+  "MqttSender": {
+    "ServiceName": "MQTT sender PROD",
+    "ClientId": "client_sender",
+    "Topic": "cmnd/tasmota_switch1",
+    "Port": 1883,
+    "Users": [
+      {
+        "Name": "mciec",
+        "Password": "a"
+      }
+    ],
+    "DelayInMilliSeconds": 30000,
+    "TlsPort": 8883
+  },
+  "NLog": {
+    "autoReload": true,
+    "throwConfigExceptions": true,
+    "internalLogLevel": "Info",
+    "internalLogFile": "internal-nlog.txt",
+    "extensions": [ { "assembly": "NLog.Extensions.Logging" } ],
+    "targets": {
+      "console": {
+        "type": "Console"
+      }
+    },
+
+    "rules": [
+      {
+        "logger": "*",
+        "minLevel": "Trace",
+        "writeTo": "Console"
+      }
+    ]
+  }
+}
