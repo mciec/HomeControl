@@ -1,6 +1,6 @@
 # HomeControl - .NET Backend with React Frontend
 
-A full-stack application demonstrating a .NET 8 backend with vertical slice architecture and a React frontend with Redux state management, featuring Google OAuth authentication.
+A full-stack application demonstrating a .NET 10 backend with vertical slice architecture and a React frontend with Redux state management, featuring Google OAuth authentication.
 
 ## Project Structure
 
@@ -29,7 +29,7 @@ HomeControl/
 
 ## Prerequisites
 
-- .NET 8 SDK
+- .NET 10 SDK
 - Node.js 18+ and npm
 - Windows PowerShell 5.0+
 - Google OAuth credentials (for authentication)
@@ -47,18 +47,17 @@ HomeControl/
    - Production: `https://localhost:7000/signin-google`
 6. Copy your Client ID and Client Secret
 
-### 2. Configure Backend
+### 2. Configure Backend Secrets
 
-Update `HomeControlBackEnd/appsettings.json`:
+Secrets are stored using the [.NET User Secrets](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) manager and are **never** committed to source control. Do not add them to `appsettings.json`.
 
-```json
-{
-  "Google": {
-    "ClientId": "YOUR_GOOGLE_CLIENT_ID",
-    "ClientSecret": "YOUR_GOOGLE_CLIENT_SECRET"
-  }
-}
+```powershell
+cd HomeControlBackEnd
+dotnet user-secrets set "Google:ClientId" "YOUR_GOOGLE_CLIENT_ID"
+dotnet user-secrets set "Google:ClientSecret" "YOUR_GOOGLE_CLIENT_SECRET"
 ```
+
+User secrets are loaded automatically when `ASPNETCORE_ENVIRONMENT=Development` (which `run-dev.ps1` sets). For production and Docker runs, secrets are injected as environment variables by the respective scripts (`run-prod.ps1`, `test-docker.ps1`, `deploy-azure.ps1`) — they all read from the user secrets store automatically.
 
 ### 3. Install Dependencies
 
@@ -112,7 +111,7 @@ Access the application at: https://localhost:7000
 
 ## Features
 
-### Backend (.NET 8)
+### Backend (.NET 10)
 
 - **Vertical Slice Architecture**: Organized by features (Auth, Sample)
 - **Google OAuth Authentication**: Only allows specific email addresses
@@ -198,7 +197,7 @@ The development environment uses self-signed certificates. You may need to:
 
 ### Google OAuth Errors
 
-- Verify Client ID and Secret are correct
+- Verify secrets are set: `dotnet user-secrets list --project HomeControlBackEnd`
 - Check that redirect URIs match exactly in Google Console
 - Ensure allowed email addresses are configured in `AuthController.cs`
 
