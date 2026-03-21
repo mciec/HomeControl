@@ -1,0 +1,133 @@
+﻿@page "/animation"
+@using Animations1d
+@using Animations1d.Display
+@using BlazorAnimationSimulator.Client.Components
+@using Microsoft.Extensions.Options
+@rendermode InteractiveWebAssembly
+
+@inject IOptions<AnimationsConfig> animationsConfig
+@inject AnimationFactory animationFactory
+@inject IDisplay display
+@* @inject IDisplay display2
+@inject IDisplay display3
+@inject IDisplay display4 *@
+
+
+<h3>Animation</h3>
+@* <div class="flexbox-container">
+    <div class="flexbox-item flexbox-item-1"></div>
+    <div class="flexbox-item flexbox-item-2"></div>
+    <div class="flexbox-item flexbox-item-3"></div>
+</div> *@
+
+
+<div style="background-color: black">
+    <Display matrix="Matrix" />
+</div>
+@* <div style="background-color: black">
+    <Display matrix="Matrix2" />
+</div>
+<div style="background-color: black">
+    <Display matrix="Matrix3" />
+</div>
+<div style="background-color: black">
+    <Display matrix="Matrix4" />
+</div> *@
+
+@code {
+    public IAnimation _animation = null!;
+    public RGB[] Matrix { get; set; } = Array.Empty<RGB>();
+
+    public CancellationTokenSource _cts = new();
+    public Task _animationTask = null!;
+
+    public RGB[] Matrix2 { get; set; } = Array.Empty<RGB>();
+    public RGB[] Matrix3 { get; set; } = Array.Empty<RGB>();
+    public RGB[] Matrix4 { get; set; } = Array.Empty<RGB>();
+    public IAnimation _animation2 = null!;
+    public IAnimation _animation3 = null!;
+    public IAnimation _animation4 = null!;
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        Console.Write("animation run");
+
+        var ct = _cts.Token;
+        _animationTask = Task.Run(async () =>
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                if (_animation is not null)
+                {
+                    _animation.NextFrame();
+
+                    RGB[] tmp = new RGB[display.Width];
+                    for (int i = 0; i < display.Width; i++)
+                    {
+                        tmp[i] = _animation.Display.Matrix[i];
+                        //Console.WriteLine($"Pixel {i} = [{tmp[i].R},{tmp[i].G},{tmp[i].B}] (original [{display.Matrix[i].R}, {display.Matrix[i].G}, {display.Matrix[i].B}])");
+                    }
+                    Matrix = tmp;
+                }
+
+                // if (_animation2 is not null)
+                // {
+                //     _animation2.NextFrame();
+                //     RGB[] tmp = new RGB[display2.Width];
+                //     for (int i = 0; i < display2.Width; i++)
+                //     {
+                //         tmp[i] = display2.Matrix[i];
+                //     }
+                //     Matrix2 = tmp;
+                // }
+
+                // if (_animation3 is not null)
+                // {
+                //     _animation3.NextFrame();
+                //     RGB[] tmp = new RGB[display3.Width];
+                //     for (int i = 0; i < display3.Width; i++)
+                //     {
+                //         tmp[i] = display3.Matrix[i];
+                //     }
+                //     Matrix3 = tmp;
+                // }
+
+                // if (_animation4 is not null)
+                // {
+                //     _animation4.NextFrame();
+                //     RGB[] tmp = new RGB[display4.Width];
+                //     for (int i = 0; i < display4.Width; i++)
+                //     {
+                //         tmp[i] = display4.Matrix[i];
+                //     }
+                //     Matrix4 = tmp;
+                // }
+
+                await InvokeAsync(StateHasChanged);
+                await Task.Delay(20);
+
+            }
+            if (ct.IsCancellationRequested)
+            {
+                throw new OperationCanceledException();
+            }
+        }, ct);
+        StateHasChanged();
+    }
+
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            animationsConfig.Value.FlyingBallsAnimation.StaticBallsCount = 1;
+            _animation = animationFactory.GetAnimation(typeof(FlyingBallsAnimation));
+            _animation.Start(Direction.LEFT);
+        }
+
+        await base.OnAfterRenderAsync(firstRender);
+
+    }
+
+}

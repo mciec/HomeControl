@@ -1,0 +1,19 @@
+﻿@using Animations1d.Display
+
+
+<div style="width: 100%; display:flex; ">
+
+    @for (int i = 0; i < matrix?.Length; i++)
+    {
+        <div name='aaa' style='font-size: 7px; color: white; margin: 1px; border: 1px; width: 15px; height: 20px; background-color: rgb(@matrix[i].R, @matrix[i].G, @matrix[i].B)'>
+            @i
+        </div>
+    }
+
+</div>
+
+@code {
+    [Parameter]
+    public RGB[] matrix { get; set; }
+
+}

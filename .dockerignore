@@ -1,0 +1,67 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+README.md
+SETUP.md
+
+# Scripts
+*.ps1
+
+# IDE
+.vs
+.vscode
+.idea
+*.suo
+*.user
+*.userosensedir
+*.sln.docstates
+
+# Frontend
+HomeControlFrontEnd/node_modules
+HomeControlFrontEnd/dist
+HomeControlFrontEnd/.vite
+HomeControlFrontEnd/npm-debug.log*
+HomeControlFrontEnd/yarn-debug.log*
+HomeControlFrontEnd/yarn-error.log*
+HomeControlFrontEnd/pnpm-debug.log*
+
+# Backend
+HomeControlBackEnd/bin
+HomeControlBackEnd/obj
+HomeControlBackEnd/wwwroot
+HomeControlBackEnd/appsettings.Development.json
+HomeControlBackEnd/appsettings.*.json
+
+# .NET
+**/bin/
+**/obj/
+**/*.cache
+*.dll
+*.exe
+*.pdb
+*.user
+*.aps
+*.pch
+*.vspscc
+*.vssscc
+*.suo
+*.sln.docstates
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+x64/
+[Bb]in/
+[Oo]bj/
+
+# Logs
+logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
