@@ -16,7 +16,7 @@ builder.Services.AddCors(options =>
     {
         var isDevelopment = builder.Environment.IsDevelopment();
         var allowedOrigins = isDevelopment
-            ? new[] { "http://localhost:3000", "https://localhost:3000", "https://localhost:7000" }
+            ? ["http://localhost:3000", "https://localhost:3000", "https://localhost:7000"]
             : Array.Empty<string>();
 
         policy

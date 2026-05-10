@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\src\\\\HomeControl\" -Recurse -Force)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "PowerShell(cd c:\\\\src\\\\HomeControl; powershell.exe -ExecutionPolicy Bypass -File .\\\\deploy-azure.ps1 -ResourceGroup homecontrol-rg -ContainerName homecontrol-app -Location eastus -AutoDeploy)",
+      "Bash(dotnet user-secrets *)",
+      "Bash(powershell.exe -ExecutionPolicy Bypass -File ./deploy-azure.ps1 -ResourceGroup homecontrol-rg -ContainerName homecontrol-app -Location eastus -AutoDeploy)",
+      "Bash(winget install *)",
+      "Read(//c/Program Files/Microsoft SDKs/Azure/CLI2/wbin//**)",
+      "Read(//c/Program Files \\(x86\\)/Microsoft SDKs/Azure/CLI2/**)",
+      "Bash(cat /c/Users/mciec/.azure/config 2>/dev/null || echo \"Config file not found\")",
+      "Read(//c/Users/mciec/.azure/**)",
+      "Bash(\"/c/Program Files/Microsoft SDKs/Azure/CLI2/wbin/az\" group exists --name homecontrol-rg)",
+      "Bash(\"/c/Program Files/Microsoft SDKs/Azure/CLI2/wbin/az\" config show)",
+      "Bash(\"/c/Program Files/Microsoft SDKs/Azure/CLI2/wbin/az\" config get core)",
+      "Read(//c/Program Files/Microsoft SDKs/Azure/CLI2//**)",
+      "Read(//c/Program Files/Microsoft SDKs/Azure/CLI2/**)"
+    ]
+  }
+}

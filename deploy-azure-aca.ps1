@@ -1,17 +1,17 @@
-# Azure Container Instances Deployment Script for HomeControl
-# Replaces the previous Azure Container Apps deployment
+# Azure Container Apps Deployment Script for HomeControl
+# For Azure Container Instances deployment, use deploy-azure.ps1 instead.
 
 param(
     [string]$ResourceGroup,
     [string]$Location = "eastus",
-    [string]$ContainerName,
+    [string]$AppName,
     [string]$GoogleClientId,
     [string]$GoogleClientSecret,
     [switch]$AutoDeploy
 )
 
 Write-Host "=====================================" -ForegroundColor Cyan
-Write-Host "Azure Container Instances Deployment" -ForegroundColor Cyan
+Write-Host "Azure Container Apps Deployment" -ForegroundColor Cyan
 Write-Host "HomeControl Application" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host ""
@@ -63,9 +63,9 @@ if ([string]::IsNullOrWhiteSpace($GoogleClientId) -or [string]::IsNullOrWhiteSpa
 # Collect required parameters — in AutoDeploy mode, missing values are a fatal error
 if ($AutoDeploy) {
     $missing = @()
-    if ([string]::IsNullOrWhiteSpace($ResourceGroup))    { $missing += "ResourceGroup" }
-    if ([string]::IsNullOrWhiteSpace($ContainerName))    { $missing += "ContainerName" }
-    if ([string]::IsNullOrWhiteSpace($GoogleClientId))   { $missing += "GoogleClientId (set via user secrets or -GoogleClientId)" }
+    if ([string]::IsNullOrWhiteSpace($ResourceGroup))      { $missing += "ResourceGroup" }
+    if ([string]::IsNullOrWhiteSpace($AppName))            { $missing += "AppName" }
+    if ([string]::IsNullOrWhiteSpace($GoogleClientId))     { $missing += "GoogleClientId (set via user secrets or -GoogleClientId)" }
     if ([string]::IsNullOrWhiteSpace($GoogleClientSecret)) { $missing += "GoogleClientSecret (set via user secrets or -GoogleClientSecret)" }
     if ($missing.Count -gt 0) {
         Write-Host "ERROR: Missing required parameters for -AutoDeploy mode:" -ForegroundColor Red
@@ -77,27 +77,29 @@ if ($AutoDeploy) {
         exit 1
     }
 } else {
-    $ResourceGroup    = Get-ParameterValue -ParamName "ResourceGroup"    -Prompt "Enter Azure Resource Group name"                                      -CurrentValue $ResourceGroup
-    $Location         = Get-ParameterValue -ParamName "Location"         -Prompt "Enter Azure Location (e.g., eastus, westeurope) [default: eastus]"    -CurrentValue $Location
-    $ContainerName    = Get-ParameterValue -ParamName "ContainerName"    -Prompt "Enter Container Instance name (lowercase, hyphens ok e.g. homecontrol-app)" -CurrentValue $ContainerName
-    $GoogleClientId   = Get-ParameterValue -ParamName "GoogleClientId"   -Prompt "Enter Google OAuth Client ID"                                          -CurrentValue $GoogleClientId
-    $GoogleClientSecret = Get-ParameterValue -ParamName "GoogleClientSecret" -Prompt "Enter Google OAuth Client Secret"                                  -CurrentValue $GoogleClientSecret -IsSecret $true
+    $ResourceGroup = Get-ParameterValue -ParamName "ResourceGroup" -Prompt "Enter Azure Resource Group name"                                       -CurrentValue $ResourceGroup
+    $Location      = Get-ParameterValue -ParamName "Location"      -Prompt "Enter Azure Location (e.g., eastus, westeurope) [default: eastus]"     -CurrentValue $Location
+    $AppName       = Get-ParameterValue -ParamName "AppName"       -Prompt "Enter Container App name (lowercase, hyphens ok e.g. homecontrol-app)" -CurrentValue $AppName
+    $GoogleClientId      = Get-ParameterValue -ParamName "GoogleClientId"      -Prompt "Enter Google OAuth Client ID"     -CurrentValue $GoogleClientId
+    $GoogleClientSecret  = Get-ParameterValue -ParamName "GoogleClientSecret"  -Prompt "Enter Google OAuth Client Secret" -CurrentValue $GoogleClientSecret -IsSecret $true
 }
 
 if ([string]::IsNullOrWhiteSpace($Location)) { $Location = "eastus" }
 
-# Derive ACR name from container name (no hyphens, lowercase)
-$ACRName = $ContainerName.Replace("-", "").ToLower() + "acr"
-$ImageName = "homecontrol"
-$Tag = "latest"
+# Derive resource names
+$ACRName         = $AppName.Replace("-", "").ToLower() + "acr"
+$EnvironmentName = "$AppName-env"
+$ImageName       = "homecontrol"
+$Tag             = "latest"
 
 Write-Host ""
 Write-Host "Deployment Configuration:" -ForegroundColor Yellow
 Write-Host "  Resource Group:      $ResourceGroup" -ForegroundColor White
 Write-Host "  Location:            $Location" -ForegroundColor White
-Write-Host "  Container Instance:  $ContainerName" -ForegroundColor White
+Write-Host "  Container App:       $AppName" -ForegroundColor White
 Write-Host "  Container Registry:  $ACRName" -ForegroundColor White
-Write-Host "  DNS hostname:        $ContainerName.$Location.azurecontainer.io" -ForegroundColor White
+Write-Host "  Environment:         $EnvironmentName" -ForegroundColor White
+Write-Host "  App URL (after):     https://$AppName.<hash>.$Location.azurecontainerapps.io" -ForegroundColor White
 Write-Host ""
 
 if (-not $AutoDeploy) {
@@ -156,7 +158,7 @@ requests.Session.send = _send_no_verify
 from azure.cli.__main__ import main
 main()
 '@
-    # Force UTF-8 I/O so Azure CLI can stream build logs with Unicode chars (e.g. vite's ✓)
+    # Force UTF-8 I/O so Azure CLI can stream build logs with Unicode chars (e.g. vite's checkmark)
     $env:PYTHONUTF8 = "1"
     $env:PYTHONIOENCODING = "utf-8"
 
@@ -195,13 +197,23 @@ Write-Host "=====================================" -ForegroundColor Cyan
 Write-Host "Step 3: Registering Azure Providers" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 
-Write-Host "Registering Microsoft.ContainerInstance provider (required for ACI)..." -ForegroundColor Yellow
-az provider register --namespace Microsoft.ContainerInstance --wait
-Write-Host "Provider registered" -ForegroundColor Green
+Write-Host "Registering providers..." -ForegroundColor Yellow
+az provider register --namespace Microsoft.App --wait
+az provider register --namespace Microsoft.OperationalInsights --wait
+Write-Host "Providers registered" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "=====================================" -ForegroundColor Cyan
-Write-Host "Step 4: Creating Resource Group" -ForegroundColor Cyan
+Write-Host "Step 4: Installing Container Apps Extension" -ForegroundColor Cyan
+Write-Host "=====================================" -ForegroundColor Cyan
+
+Write-Host "Installing/upgrading Container Apps CLI extension..." -ForegroundColor Yellow
+az extension add --name containerapp --upgrade --yes 2>$null
+Write-Host "Extension ready" -ForegroundColor Green
+
+Write-Host ""
+Write-Host "=====================================" -ForegroundColor Cyan
+Write-Host "Step 5: Creating Resource Group" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 
 $rgExists = az group exists --name $ResourceGroup
@@ -219,7 +231,7 @@ if ($rgExists -eq "true") {
 
 Write-Host ""
 Write-Host "=====================================" -ForegroundColor Cyan
-Write-Host "Step 5: Creating Container Registry" -ForegroundColor Cyan
+Write-Host "Step 6: Creating Container Registry" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 
 Write-Host "Creating Azure Container Registry '$ACRName'..." -ForegroundColor Yellow
@@ -231,7 +243,7 @@ Write-Host "Container Registry ready" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "=====================================" -ForegroundColor Cyan
-Write-Host "Step 6: Building Docker Image" -ForegroundColor Cyan
+Write-Host "Step 7: Building Docker Image" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 
 Write-Host "Building and pushing Docker image (this may take several minutes)..." -ForegroundColor Yellow
@@ -244,7 +256,19 @@ Write-Host "Docker image built and pushed successfully" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "=====================================" -ForegroundColor Cyan
-Write-Host "Step 7: Deploying Container Instance" -ForegroundColor Cyan
+Write-Host "Step 8: Creating Container Apps Environment" -ForegroundColor Cyan
+Write-Host "=====================================" -ForegroundColor Cyan
+
+Write-Host "Creating Container Apps environment '$EnvironmentName'..." -ForegroundColor Yellow
+az containerapp env create --name $EnvironmentName --resource-group $ResourceGroup --location $Location 2>$null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Environment might already exist, continuing..." -ForegroundColor Yellow
+}
+Write-Host "Container Apps environment ready" -ForegroundColor Green
+
+Write-Host ""
+Write-Host "=====================================" -ForegroundColor Cyan
+Write-Host "Step 9: Deploying Container App" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 
 # Get ACR credentials
@@ -253,52 +277,49 @@ $ACRServer   = az acr show --name $ACRName --query loginServer --output tsv
 $ACRUsername = az acr credential show --name $ACRName --query username --output tsv
 $ACRPassword = az acr credential show --name $ACRName --query "passwords[0].value" --output tsv
 
-# Delete existing instance if present (ACI has no in-place update for image)
-$containerExists = az container show --resource-group $ResourceGroup --name $ContainerName 2>$null
-if (-not [string]::IsNullOrWhiteSpace($containerExists)) {
-    Write-Host "Existing container instance found - deleting for fresh deployment..." -ForegroundColor Yellow
-    az container delete --resource-group $ResourceGroup --name $ContainerName --yes
-    if ($LASTEXITCODE -ne 0) {
-        Write-Host "Failed to delete existing container instance!" -ForegroundColor Red
-        exit 1
-    }
-    Write-Host "Existing container instance deleted" -ForegroundColor Green
-}
-
-Write-Host "Deploying container instance..." -ForegroundColor Yellow
-az container create `
+Write-Host "Deploying container app..." -ForegroundColor Yellow
+az containerapp create `
+    --name $AppName `
     --resource-group $ResourceGroup `
-    --name $ContainerName `
+    --environment $EnvironmentName `
     --image "${ACRServer}/${ImageName}:${Tag}" `
-    --registry-login-server $ACRServer `
+    --registry-server $ACRServer `
     --registry-username $ACRUsername `
     --registry-password $ACRPassword `
+    --target-port 8080 `
+    --ingress external `
+    --min-replicas 1 `
+    --max-replicas 3 `
     --cpu 0.5 `
-    --memory 1.0 `
-    --ports 8080 8081 `
-    --ip-address public `
-    --dns-name-label $ContainerName `
-    --os-type Linux `
-    --environment-variables "ASPNETCORE_ENVIRONMENT=Production" `
-    --secure-environment-variables "Google__ClientId=$GoogleClientId" "Google__ClientSecret=$GoogleClientSecret"
+    --memory 1.0Gi `
+    --secrets "google-client-id=$GoogleClientId" "google-client-secret=$GoogleClientSecret" `
+    --env-vars "Google__ClientId=secretref:google-client-id" "Google__ClientSecret=secretref:google-client-secret" "ASPNETCORE_ENVIRONMENT=Production"
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Container instance deployment failed!" -ForegroundColor Red
-    Write-Host "If the error mentions the DNS label is unavailable, re-run with a different -ContainerName." -ForegroundColor Yellow
-    exit 1
+    Write-Host "Container app creation failed, trying update instead..." -ForegroundColor Yellow
+
+    az containerapp update `
+        --name $AppName `
+        --resource-group $ResourceGroup `
+        --image "${ACRServer}/${ImageName}:${Tag}"
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "Deployment failed. Check the Azure portal for details." -ForegroundColor Red
+        exit 1
+    }
 }
 
-Write-Host "Container instance deployed successfully" -ForegroundColor Green
+Write-Host "Container app deployed successfully" -ForegroundColor Green
 
 Write-Host ""
 Write-Host "=====================================" -ForegroundColor Cyan
-Write-Host "Step 8: Getting Application URL" -ForegroundColor Cyan
+Write-Host "Step 10: Getting Application URL" -ForegroundColor Cyan
 Write-Host "=====================================" -ForegroundColor Cyan
 
-$FQDN = az container show `
+$AppUrl = az containerapp show `
+    --name $AppName `
     --resource-group $ResourceGroup `
-    --name $ContainerName `
-    --query ipAddress.fqdn `
+    --query properties.configuration.ingress.fqdn `
     --output tsv
 
 Write-Host ""
@@ -306,28 +327,24 @@ Write-Host "=====================================" -ForegroundColor Green
 Write-Host "Deployment Completed Successfully!" -ForegroundColor Green
 Write-Host "=====================================" -ForegroundColor Green
 Write-Host ""
-Write-Host "Application URLs:" -ForegroundColor Cyan
-Write-Host "  HTTP:  http://${FQDN}:8080" -ForegroundColor White
-Write-Host "  HTTPS: https://${FQDN}:8081  (self-signed cert - browser warning expected)" -ForegroundColor White
+Write-Host "Application URL:" -ForegroundColor Cyan
+Write-Host "  https://$AppUrl" -ForegroundColor White
 Write-Host ""
 Write-Host "IMPORTANT: Update Google OAuth Redirect URIs" -ForegroundColor Yellow
 Write-Host "  1. Go to: https://console.cloud.google.com/" -ForegroundColor White
 Write-Host "  2. Navigate to your OAuth 2.0 Client ID" -ForegroundColor White
 Write-Host "  3. Add this Authorized redirect URI:" -ForegroundColor White
-Write-Host "     https://${FQDN}:8081/signin-google" -ForegroundColor Cyan
-Write-Host ""
-Write-Host "Note: The app serves HTTPS via a self-signed certificate baked into the" -ForegroundColor Yellow
-Write-Host "      Docker image. Click through the browser warning to access the app." -ForegroundColor Yellow
+Write-Host "     https://$AppUrl/signin-google" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Useful Commands:" -ForegroundColor Yellow
 Write-Host "  View logs:" -ForegroundColor White
-Write-Host "    az container logs --resource-group $ResourceGroup --name $ContainerName --follow" -ForegroundColor Cyan
+Write-Host "    az containerapp logs show --name $AppName --resource-group $ResourceGroup --follow" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  Check status:" -ForegroundColor White
-Write-Host "    az container show --resource-group $ResourceGroup --name $ContainerName --query '{State:instanceView.state,IP:ipAddress.ip,FQDN:ipAddress.fqdn}'" -ForegroundColor Cyan
+Write-Host "  Update secrets:" -ForegroundColor White
+Write-Host "    az containerapp secret set --name $AppName --resource-group $ResourceGroup --secrets google-client-id=NEW_ID google-client-secret=NEW_SECRET" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "  Restart container:" -ForegroundColor White
-Write-Host "    az container restart --resource-group $ResourceGroup --name $ContainerName" -ForegroundColor Cyan
+Write-Host "  Scale app:" -ForegroundColor White
+Write-Host "    az containerapp update --name $AppName --resource-group $ResourceGroup --min-replicas 1 --max-replicas 5" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Delete all resources:" -ForegroundColor White
 Write-Host "    az group delete --name $ResourceGroup --yes" -ForegroundColor Cyan
