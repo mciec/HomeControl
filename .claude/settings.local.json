@@ -15,7 +15,13 @@
       "Bash(\"/c/Program Files/Microsoft SDKs/Azure/CLI2/wbin/az\" config show)",
       "Bash(\"/c/Program Files/Microsoft SDKs/Azure/CLI2/wbin/az\" config get core)",
       "Read(//c/Program Files/Microsoft SDKs/Azure/CLI2//**)",
-      "Read(//c/Program Files/Microsoft SDKs/Azure/CLI2/**)"
+      "Read(//c/Program Files/Microsoft SDKs/Azure/CLI2/**)",
+      "Bash(Get-ChildItem -Path \"c:\\\\src\\\\HomeControl\" -Force)",
+      "Bash(Select-Object -Property Mode, Name)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(git -C \"c:\\\\src\\\\HomeControl\" log --oneline -5)",
+      "Bash(grep -E \"\\(^[^/]*$|/[^/]*$|/[^/]*/[^/]*$\\)\")",
+      "PowerShell(if \\(!\\(Test-Path \"c:\\\\src\\\\HomeControl\\\\.claude\\\\agents\"\\)\\) { New-Item -ItemType Directory -Path \"c:\\\\src\\\\HomeControl\\\\.claude\\\\agents\" | Out-Null }; Get-ChildItem \"c:\\\\src\\\\HomeControl\\\\.claude\\\\\")"
     ]
   }
 }
