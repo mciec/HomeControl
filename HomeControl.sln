@@ -1,5 +1,4 @@
-﻿
-Microsoft Visual Studio Solution File, Format Version 12.00
+﻿Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
 VisualStudioVersion = 18.4.11605.240 stable
 MinimumVisualStudioVersion = 10.0.40219.1
@@ -18,6 +17,8 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorAnimationSimulator", "DevicesAndSensors\RpiLedStripeDevice\BlazorAnimationSimulator\BlazorAnimationSimulator\BlazorAnimationSimulator.csproj", "{77283881-FEC2-C5CC-20CA-57CEC4384E87}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorAnimationSimulator.Client", "DevicesAndSensors\RpiLedStripeDevice\BlazorAnimationSimulator\BlazorAnimationSimulator.Client\BlazorAnimationSimulator.Client.csproj", "{2DFB8BBB-B42C-38F6-F082-C868E3E7494E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LedStripeChristmasTree", "DevicesAndSensors\RpiLedStripeDevice\LedStripeChristmasTree\LedStripeChristmasTree.csproj", "{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -97,6 +98,18 @@ Global
 		{2DFB8BBB-B42C-38F6-F082-C868E3E7494E}.Release|x64.Build.0 = Release|Any CPU
 		{2DFB8BBB-B42C-38F6-F082-C868E3E7494E}.Release|x86.ActiveCfg = Release|Any CPU
 		{2DFB8BBB-B42C-38F6-F082-C868E3E7494E}.Release|x86.Build.0 = Release|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Debug|x64.Build.0 = Debug|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Debug|x86.Build.0 = Debug|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Release|x64.ActiveCfg = Release|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Release|x64.Build.0 = Release|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Release|x86.ActiveCfg = Release|Any CPU
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -107,6 +120,7 @@ Global
 		{49E10ED0-6E96-4D36-8121-4A555DD2DDE0} = {D431AE57-0BB6-A930-8DF2-4F176637EA21}
 		{77283881-FEC2-C5CC-20CA-57CEC4384E87} = {D431AE57-0BB6-A930-8DF2-4F176637EA21}
 		{2DFB8BBB-B42C-38F6-F082-C868E3E7494E} = {D431AE57-0BB6-A930-8DF2-4F176637EA21}
+		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45} = {D431AE57-0BB6-A930-8DF2-4F176637EA21}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {BB733B63-2A3F-48BF-8D3D-F11A87740A3F}

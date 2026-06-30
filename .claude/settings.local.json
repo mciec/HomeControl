@@ -21,7 +21,8 @@
       "Bash(Format-Table -AutoSize)",
       "Bash(git -C \"c:\\\\src\\\\HomeControl\" log --oneline -5)",
       "Bash(grep -E \"\\(^[^/]*$|/[^/]*$|/[^/]*/[^/]*$\\)\")",
-      "PowerShell(if \\(!\\(Test-Path \"c:\\\\src\\\\HomeControl\\\\.claude\\\\agents\"\\)\\) { New-Item -ItemType Directory -Path \"c:\\\\src\\\\HomeControl\\\\.claude\\\\agents\" | Out-Null }; Get-ChildItem \"c:\\\\src\\\\HomeControl\\\\.claude\\\\\")"
+      "PowerShell(if \\(!\\(Test-Path \"c:\\\\src\\\\HomeControl\\\\.claude\\\\agents\"\\)\\) { New-Item -ItemType Directory -Path \"c:\\\\src\\\\HomeControl\\\\.claude\\\\agents\" | Out-Null }; Get-ChildItem \"c:\\\\src\\\\HomeControl\\\\.claude\\\\\")",
+      "PowerShell($env:ASPNETCORE_ENVIRONMENT = \"Development\"; dotnet run --project \"c:\\\\src\\\\HomeControl\\\\DevicesAndSensors\\\\RpiLedStripeDevice\\\\BlazorAnimationSimulator\\\\BlazorAnimationSimulator\\\\BlazorAnimationSimulator.csproj\" --launch-profile http 2>&1)"
     ]
   }
 }

@@ -33,7 +33,6 @@ internal sealed class AnimationManager
     private readonly bool _dontRunAtDaylight;
     private readonly int _leftMotionDetectorPin;
     private readonly int _rightMotionDetectorPin;
-    private readonly IOptions<AnimationManagerConfig> _animationManagerConfig;
     private readonly AnimationFactory _animationFactory;
     private readonly MqttClient _mqttClient;
     private readonly ILogger<AnimationManager> _logger;
@@ -100,7 +99,7 @@ internal sealed class AnimationManager
             {
                 if (IgnoreDetectedMovement())
                 {
-                    _logger.LogInformation("Motion detected: {direction}, but it's daylight at {time}", "RIGHT", DateTime.Now.ToShortTimeString());
+                    _logger.LogInformation("Motion detected: {direction}, ignored at {time}", "RIGHT", DateTime.Now.ToShortTimeString());
                     return;
                 }
                 MovementRight = true;

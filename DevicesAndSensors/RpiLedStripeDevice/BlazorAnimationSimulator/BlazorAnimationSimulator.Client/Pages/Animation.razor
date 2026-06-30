@@ -123,6 +123,9 @@
         {
             animationsConfig.Value.FlyingBallsAnimation.StaticBallsCount = 1;
             _animation = animationFactory.GetAnimation(typeof(FlyingBallsAnimation));
+            //_animation = animationFactory.GetAnimation(typeof(TraceAnimation));
+            //_animation = animationFactory.GetAnimation(typeof(WavesAnimation)); 
+            //_animation = animationFactory.GetAnimation(typeof(ExplosionsAnimation));
             _animation.Start(Direction.LEFT);
         }
 

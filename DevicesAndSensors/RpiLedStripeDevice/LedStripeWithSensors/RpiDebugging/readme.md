@@ -13,4 +13,4 @@
 	/home/mciec/.dotnet/dotnet LedStripeWithSensors.dll
 
 	and add execution right to runLedStripeWithSensors.sh:
-	$ chmod +x /home/mciec/projects/runLedStripeWithSensors.sh
+	$ chmod +x /home/mciec/runLedStripeWithSensors.sh

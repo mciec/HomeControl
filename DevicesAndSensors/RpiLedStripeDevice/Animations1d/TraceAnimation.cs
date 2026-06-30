@@ -89,7 +89,7 @@ public sealed class TraceAnimation : AnimationBase
                         var colorPalette = 0;
                         TracedBalls[i] = new TracedBall(
                             x: Direction == Direction.LEFT ? 0 : Display.Width,
-                            v: Direction == Direction.LEFT ? 9 : -9,
+                            v: Direction == Direction.LEFT ? 5 : -5,
                             colorPalette: colorPalette,
                             viewPortSize: Display.Width,
                             dimmingPercent: 95,

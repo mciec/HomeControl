@@ -59,4 +59,6 @@ var animationManager = host.Services.GetRequiredService<AnimationManager>();
 
 _ = Task.Run(() => animationManager.Run(ct));
 
+Console.WriteLine("running...");
+
 await host.RunAsync();

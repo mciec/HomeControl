@@ -9,7 +9,6 @@ public static class AnimationFactoryHelper
         services.AddSingleton<IAnimation, FlyingBallsAnimation>();
         services.AddSingleton<IAnimation, TraceAnimation>();
         services.AddSingleton<IAnimation, WavesAnimation>();
-        services.AddSingleton<IAnimation, FireballTraceAnimation>();
         services.AddSingleton<IAnimation, ExplosionsAnimation>();
         return services;
     }
