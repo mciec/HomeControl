@@ -4,6 +4,7 @@ using LedStripeWithSensors.AnimationManager;
 using LedStripeWithSensors.Display;
 using LedStripeWithSensors.MotionSensor;
 using LedStripeWithSensors.MqttManager;
+using MqttManager;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -26,6 +27,7 @@ builder.Configuration
 var mqttPaswword = builder.Configuration["MqttConfig:Password"];
 builder.Services.AddOptions<MqttClientConfig>().BindConfiguration("MqttConfig")
     .PostConfigure(config => { config.Password = mqttPaswword!; });
+builder.Services.AddOptions<EntranceMqttTopicsConfig>().BindConfiguration("MqttConfig");
 builder.Services.AddOptions<MotionSensorsConfig>().BindConfiguration("MotionSensorsConfig");
 
 builder.Services.AddOptions<AnimationsConfig>().BindConfiguration("Animations");

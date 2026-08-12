@@ -1,6 +1,15 @@
 $rpi = "192.168.8.20"
 #$rpi = 192.168.8.67
 Write-Host "RPI address:" $rpi
+
+$projectPath = Join-Path $PSScriptRoot "..\LedStripeWithSensors.csproj"
+Write-Host "Building and publishing for linux-arm64..."
+dotnet publish $projectPath -p:PublishProfile=FolderProfile
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "Publish failed, aborting deployment." -ForegroundColor Red
+    exit 1
+}
+
 ssh mciec@${rpi} pkill -f 'LedStripeWithSensors.dll'
 ssh mciec@${rpi} rm ~/projects/LedStripeWithSensors -f -r -d 
 ssh mciec@${rpi} mkdir ~/projects

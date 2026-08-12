@@ -1,9 +1,9 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging;
 using System.Threading.Channels;
 
-namespace LedStripeWithSensors.MqttManager;
+namespace MqttManager;
 
-internal sealed class ChannelManagerWithRecovery
+public sealed class ChannelManagerWithRecovery
 {
     private readonly Channel<IExpiratingAsyncDelegate> _expiratingDelegateChannel;
     private readonly ILogger<ChannelManagerWithRecovery> _logger;

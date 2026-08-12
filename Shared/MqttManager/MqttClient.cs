@@ -1,24 +1,21 @@
-﻿using System.Security;
+using System.Security;
 using HiveMQtt.Client;
 using HiveMQtt.Client.Exceptions;
 using HiveMQtt.Client.Options;
-using Iot.Device.Common;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 
-namespace LedStripeWithSensors.MqttManager;
+namespace MqttManager;
 
-internal sealed class MqttClient : IAsyncDisposable
+public sealed class MqttClient : IAsyncDisposable
 {
     private readonly SemaphoreSlim _allowReconnect;
-
-    private const string MessageLeft = "LEFT";
-    private const string MessageRight = "RIGHT";
 
     private readonly MqttClientConfig _config;
     private readonly ChannelManagerWithRecovery _channelManagerWithRecovery;
     private readonly ILogger<MqttClient> _logger;
     private HiveMQClient _client = null!;
+    private IReadOnlyCollection<string> _subscribeTopics = Array.Empty<string>();
 
     public MqttClient(IOptions<MqttClientConfig> config, ChannelManagerWithRecovery channelManagerWithRecovery, ILogger<MqttClient> logger)
     {
@@ -28,8 +25,14 @@ internal sealed class MqttClient : IAsyncDisposable
         _allowReconnect = new SemaphoreSlim(1);
     }
 
-    public MqttClient Connect(Action onOverrideLeft, Action onOverrideRight, CancellationToken ct)
+    public event EventHandler<MqttMessageReceivedEventArgs>? MessageReceived;
+
+    public bool IsConnected => _client?.IsConnected() == true;
+
+    public MqttClient Connect(IReadOnlyCollection<string> subscribeTopics, CancellationToken ct)
     {
+        _subscribeTopics = subscribeTopics;
+
         var options = new HiveMQClientOptions
         {
             ClientId = _config.ClientId,
@@ -49,14 +52,7 @@ internal sealed class MqttClient : IAsyncDisposable
 
         _client.OnMessageReceived += (sender, args) =>
         {
-            string payload = args.PublishMessage.PayloadAsString.ToUpper();
-            switch (payload)
-            {
-                //TODO: clear
-                case MessageLeft: onOverrideLeft(); Send("left override detected"); break;
-                case MessageRight: onOverrideRight(); Send("right override detected"); break;
-                default: break;
-            }
+            MessageReceived?.Invoke(this, new MqttMessageReceivedEventArgs(args.PublishMessage.Topic, args.PublishMessage.PayloadAsString));
         };
 
         _client.AfterDisconnect += async (sender, args) =>
@@ -70,7 +66,7 @@ internal sealed class MqttClient : IAsyncDisposable
         return this;
     }
 
-    public void Send(string msg)
+    public void Publish(string topic, string message)
     {
         if (_channelManagerWithRecovery is null)
             throw new Exception("Channel manager not created");
@@ -79,8 +75,8 @@ internal sealed class MqttClient : IAsyncDisposable
         {
             Delegate = async (CancellationToken ct) =>
             {
-                _logger.LogInformation("Sending message: {message} to topic: {topic}", msg, _config.MotionDetectedTopic);
-                var result = await _client.PublishAsync(_config.MotionDetectedTopic, msg).ConfigureAwait(false);
+                _logger.LogInformation("Sending message: {message} to topic: {topic}", message, topic);
+                var result = await _client.PublishAsync(topic, message).ConfigureAwait(false);
                 return true;
             },
             ExpirationDate = DateTime.UtcNow.AddSeconds(10)
@@ -93,15 +89,15 @@ internal sealed class MqttClient : IAsyncDisposable
         {
             if (!await _allowReconnect.WaitAsync(1000).ConfigureAwait(false))
             {
-                _logger.LogInformation("Semaphore is taken.");
+                _logger.LogDebug("Semaphore is taken.");
                 return false;
             }
 
-            _logger.LogInformation("Inside semaphore");
+            _logger.LogDebug("Inside semaphore");
 
             if (_client.IsConnected())
             {
-                _logger.LogInformation("Already connected");
+                _logger.LogDebug("Already connected");
                 return true;
             }
 
@@ -121,11 +117,18 @@ internal sealed class MqttClient : IAsyncDisposable
                     _logger.LogInformation("Unsubscribed");
                 }
 
-                _logger.LogInformation("Subscribing...");
-                var subscribeResult = await _client.SubscribeAsync(_config.OverrideTopic).ConfigureAwait(false);
-                _logger.LogInformation("Subscribed. Subscription count: {count}", subscribeResult?.Subscriptions.Count);
+                var result = true;
 
-                var result = subscribeResult != null;
+                if (_subscribeTopics.Count > 0)
+                {
+                    _logger.LogInformation("Subscribing...");
+                    foreach (var topic in _subscribeTopics)
+                    {
+                        var subscribeResult = await _client.SubscribeAsync(topic).ConfigureAwait(false);
+                        _logger.LogInformation("Subscribed. Subscription count: {count}", subscribeResult?.Subscriptions.Count);
+                        result &= subscribeResult != null;
+                    }
+                }
 
                 if (result)
                     _logger.LogInformation("Reconnecting and subscribing succeeded");
@@ -145,7 +148,7 @@ internal sealed class MqttClient : IAsyncDisposable
         finally
         {
             _allowReconnect.Release();
-            _logger.LogInformation("Semaphore left");
+            _logger.LogDebug("Semaphore exited");
         }
         return false;
     }

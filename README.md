@@ -59,6 +59,23 @@ dotnet user-secrets set "Google:ClientSecret" "YOUR_GOOGLE_CLIENT_SECRET"
 
 User secrets are loaded automatically when `ASPNETCORE_ENVIRONMENT=Development` (which `run-dev.ps1` sets). For production and Docker runs, secrets are injected as environment variables by the respective scripts (`run-prod.ps1`, `test-docker.ps1`, `deploy-azure.ps1`) — they all read from the user secrets store automatically.
 
+#### MQTT broker credentials (Devices feature)
+
+The Devices feature connects to the same HiveMQ Cloud broker used by the physical
+entrance LED strip device. Non-secret connection settings (`ClientId`, `Port`, `UseTLS`)
+live in `appsettings.json` under `Mqtt`; the broker host and credentials are secrets:
+
+```powershell
+cd HomeControlBackEnd
+dotnet user-secrets set "Mqtt:Host" "YOUR_HIVEMQ_CLOUD_HOST"
+dotnet user-secrets set "Mqtt:User" "YOUR_MQTT_USERNAME"
+dotnet user-secrets set "Mqtt:Password" "YOUR_MQTT_PASSWORD"
+```
+
+Use the same broker/credentials as configured for the RPi device project
+(`DevicesAndSensors/RpiLedStripeDevice/LedStripeWithSensors/appSettings.json`'s
+`MqttConfig` section) if you want the backend to see the real device's traffic locally.
+
 ### 3. Install Dependencies
 
 ```powershell

@@ -1,6 +1,6 @@
-﻿namespace LedStripeWithSensors.MqttManager;
+namespace MqttManager;
 
-internal interface IExpiratingAsyncDelegate
+public interface IExpiratingAsyncDelegate
 {
     Func<CancellationToken, ValueTask<bool>> Delegate { get; set; }
     DateTime? ExpirationDate { get; set; }

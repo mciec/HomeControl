@@ -7,12 +7,16 @@ import { setAuthenticated, setLoading, setError } from './store/authSlice';
 import { authService } from './services/api';
 import WelcomePage from './pages/WelcomePage';
 import AuthenticatedPage from './pages/AuthenticatedPage';
+import DevicesPage from './pages/DevicesPage';
 import type { RootState } from './store/store';
+
+type ActiveView = 'home' | 'devices';
 
 function App() {
   const dispatch = useDispatch();
   const { isAuthenticated, loading, error } = useSelector((state: RootState) => state.auth);
   const [showOffcanvas, setShowOffcanvas] = useState(false);
+  const [activeView, setActiveView] = useState<ActiveView>('home');
 
   useEffect(() => {
     const checkAuthStatus = async () => {
@@ -37,6 +41,7 @@ function App() {
     try {
       await authService.logout();
       dispatch(setAuthenticated({ isAuthenticated: false }));
+      setActiveView('home');
       setShowOffcanvas(false);
     } catch (err) {
       dispatch(setError('Failed to logout'));
@@ -67,17 +72,41 @@ function App() {
         <Offcanvas.Body>
           <Nav className="justify-content-end flex-grow-1 pe-3">
             {isAuthenticated ? (
-              <Button
-                variant="outline-dark"
-                size="sm"
-                onClick={() => {
-                  handleLogout();
-                  setShowOffcanvas(false);
-                }}
-                className="w-100"
-              >
-                Logout
-              </Button>
+              <>
+                <Button
+                  variant="outline-dark"
+                  size="sm"
+                  onClick={() => {
+                    setActiveView('home');
+                    setShowOffcanvas(false);
+                  }}
+                  className="w-100 mb-2"
+                >
+                  Home
+                </Button>
+                <Button
+                  variant="outline-dark"
+                  size="sm"
+                  onClick={() => {
+                    setActiveView('devices');
+                    setShowOffcanvas(false);
+                  }}
+                  className="w-100 mb-2"
+                >
+                  Devices
+                </Button>
+                <Button
+                  variant="outline-dark"
+                  size="sm"
+                  onClick={() => {
+                    handleLogout();
+                    setShowOffcanvas(false);
+                  }}
+                  className="w-100"
+                >
+                  Logout
+                </Button>
+              </>
             ) : (
               <Button
                 variant="outline-dark"
@@ -102,7 +131,11 @@ function App() {
             <p>Loading...</p>
           </div>
         ) : isAuthenticated ? (
-          <AuthenticatedPage />
+          activeView === 'devices' ? (
+            <DevicesPage />
+          ) : (
+            <AuthenticatedPage />
+          )
         ) : (
           <WelcomePage />
         )}
