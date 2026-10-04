@@ -23,7 +23,7 @@ Installs git, .NET 10, Node 22 and friends (idempotent, safe to re-run). Optiona
 1. Open the [Google Cloud Console](https://console.cloud.google.com/), create a project and an **OAuth 2.0 Client ID** of type *Web application*.
 2. Add these **authorized redirect URIs** - the callback is always served by the backend, even when you browse the Vite dev server on port 3000:
    - `https://localhost:7000/signin-google`
-   - `https://homecontrol-app.azurewebsites.net/signin-google` (Azure)
+   - `https://homecontrol-app.greenwater-2aa7f6a2.polandcentral.azurecontainerapps.io/signin-google` (Azure production)
    - `http://localhost:8080/signin-google`, `https://localhost:8081/signin-google` (only for `test-docker.sh`)
 3. Copy the **Client ID** and **Client Secret**.
 
@@ -69,7 +69,7 @@ The dev backend serves HTTPS on `localhost:7000` with a self-signed certificate,
 ```bash
 ./run-prod.sh                       # build frontend into wwwroot, publish, run in Production
 ./test-docker.sh                    # production image in Docker on :8080/:8081
-./deploy-azure-code.sh -g homecontrol-rg -n homecontrol-app -y     # Azure App Service B1, always-on - see AZURE_DEPLOYMENT.md
+./deploy-azure-aca.sh -g homecontrol-rg -n homecontrol-app -y     # Azure Container Apps (image from GHCR) - see AZURE_DEPLOYMENT.md
 INSTALL_ANDROID=1 ./scripts/setup-ubuntu.sh && ./build-mobile-release.sh # Android release APK
 ```
 

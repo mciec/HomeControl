@@ -59,7 +59,7 @@ The output APK lands at `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 **Release APK** (also type-checks, lints and tests first; needs JDK 17 + the Android SDK, installed by `INSTALL_ANDROID=1 ./scripts/setup-ubuntu.sh`): from the repo root run `./build-mobile-release.sh` (`--aab` adds the Play Store bundle). The output is `android/app/build/outputs/apk/release/app-release.apk`. The release build type is signed with `android/app/debug.keystore` (stock React Native template), so it sideloads fine but is **not Play Store ready** - generate your own keystore and point `signingConfigs.release` in `android/app/build.gradle` at it first. `API_BASE_URL` is baked in at build time from `.env`.
 
-Set `API_BASE_URL` (copy `.env.example` to `.env` - read by [`react-native-config`](https://github.com/lugg/react-native-config)) to point at the backend. The default/recommended value is the Azure-hosted backend, `https://homecontrol-app.azurewebsites.net`, which has a publicly-trusted TLS cert and needs no local setup. It **must be `https://`**, not `http://` (see Auth below), whichever backend you point at.
+Set `API_BASE_URL` (copy `.env.example` to `.env` - read by [`react-native-config`](https://github.com/lugg/react-native-config)) to point at the backend. The default/recommended value is the Azure-hosted backend, `https://homecontrol-app.greenwater-2aa7f6a2.polandcentral.azurecontainerapps.io`, which has a publicly-trusted TLS cert and needs no local setup. It **must be `https://`**, not `http://` (see Auth below), whichever backend you point at.
 
 ## Auth: how login actually works here
 
@@ -83,7 +83,7 @@ The `homecontrol://` scheme is still registered at the OS level for parity/robus
 
 The auth cookie is `Secure` (`Program.cs`), so it's only stored over an HTTPS connection - except browsers/WebViews special-case `localhost` as "secure enough" even over plain HTTP, which is how the web app's dev flow gets away with an HTTP-facing Vite proxy. Mobile clients generally can't reach the backend via literal `localhost` (an Android emulator needs `10.0.2.2`, a physical device needs the LAN IP), so **the mobile app must talk to the backend over real HTTPS with a certificate that actually validates for that host**.
 
-**This is a non-issue with the default/recommended backend** - `https://homecontrol-app.azurewebsites.net` has a publicly-trusted, CA-issued certificate (Azure App Service's managed cert), so there's nothing to configure. The rest of this section only applies if you point `API_BASE_URL` at a **local** `HomeControlBackEnd` instead, whose dev HTTPS certificate is self-signed for `localhost` only.
+**This is a non-issue with the default/recommended backend** - `https://homecontrol-app.greenwater-2aa7f6a2.polandcentral.azurecontainerapps.io` has a publicly-trusted, CA-issued certificate (Azure Container Apps' managed cert), so there's nothing to configure. The rest of this section only applies if you point `API_BASE_URL` at a **local** `HomeControlBackEnd` instead, whose dev HTTPS certificate is self-signed for `localhost` only.
 
 The fix, using [mkcert](https://github.com/FiloSottile/mkcert):
 
@@ -130,10 +130,10 @@ The cost is slightly higher latency than a WebSocket. Worth re-testing on a devi
 Backend URL configuration goes through [`react-native-config`](https://github.com/lugg/react-native-config), which exposes a root-level `.env` file to JS as `Config.*` (via native `BuildConfig` fields on Android / an `Info.plist`-adjacent mechanism on iOS):
 
 ```
-API_BASE_URL=https://homecontrol-app.azurewebsites.net
+API_BASE_URL=https://homecontrol-app.greenwater-2aa7f6a2.polandcentral.azurecontainerapps.io
 ```
 
-Copy `.env.example` to `.env` and adjust if you're pointing at a local backend instead - see that file for the emulator/simulator/physical-device address forms. `src/config.ts` reads it as `Config.API_BASE_URL ?? 'https://homecontrol-app.azurewebsites.net'`. Changing `.env` requires a native rebuild (not just a Metro reload) since the value is baked into the native `BuildConfig`/`Info.plist`, not read at JS runtime from `process.env`.
+Copy `.env.example` to `.env` and adjust if you're pointing at a local backend instead - see that file for the emulator/simulator/physical-device address forms. `src/config.ts` reads it as `Config.API_BASE_URL ?? 'https://homecontrol-app.greenwater-2aa7f6a2.polandcentral.azurecontainerapps.io'`. Changing `.env` requires a native rebuild (not just a Metro reload) since the value is baked into the native `BuildConfig`/`Info.plist`, not read at JS runtime from `process.env`.
 
 ## Known gaps vs. the web app
 

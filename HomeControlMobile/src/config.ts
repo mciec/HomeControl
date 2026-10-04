@@ -17,7 +17,7 @@ import Config from 'react-native-config';
 // only, so hitting it via an emulator alias or LAN IP will fail TLS
 // validation unless you trust a cert that covers that host (e.g. via mkcert)
 // - see README.md. This does not apply to the Azure default above.
-export const API_BASE_URL = Config.API_BASE_URL ?? 'https://homecontrol-app.azurewebsites.net';
+export const API_BASE_URL = Config.API_BASE_URL ?? 'https://homecontrol-app.greenwater-2aa7f6a2.polandcentral.azurecontainerapps.io';
 
 // Must match the intent-filter scheme declared for MainActivity in
 // AndroidManifest.xml (and the URL scheme in ios/.../Info.plist), and the

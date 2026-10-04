@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Azure App Service (Web App for Containers) deployment for HomeControl - the container VARIANT.
-# Prefer deploy-azure-code.sh (same B1 plan, no container registry, ~$5/month cheaper); use this one when
-# you want an immutable Docker image.
+# Prefer deploy-azure-aca.sh (cheapest) or deploy-azure-code.sh (same B1 plan, no container registry,
+# ~$5/month cheaper than this); use this one when you want an immutable image built in Azure.
 #
 # Builds the single Docker image (React frontend served from the .NET backend's
 # wwwroot) remotely in ACR and runs it on App Service. App Service terminates

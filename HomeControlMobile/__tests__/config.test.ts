@@ -10,7 +10,7 @@ import { API_BASE_URL, MOBILE_AUTH_CALLBACK_URL, MOBILE_SCHEME } from '../src/co
 // react-native-config import itself is stubbed out.
 describe('config', () => {
   it('falls back to the Azure-hosted backend when no env override is set', () => {
-    expect(API_BASE_URL).toBe('https://homecontrol-app.azurewebsites.net');
+    expect(API_BASE_URL).toBe('https://homecontrol-app.greenwater-2aa7f6a2.polandcentral.azurecontainerapps.io');
   });
 
   it('derives the auth callback URL from the mobile scheme', () => {

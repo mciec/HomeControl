@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Cheapest ALWAYS-ON way to run HomeControl in Azure: App Service Basic B1 (~$12.40/month) with the
+# Simplest always-on way to run HomeControl in Azure: App Service Basic B1 (~$12.40/month) with the
 # code deployed straight to the built-in Linux .NET 10 runtime - no Docker image, no Azure Container
 # Registry (which alone cost ~$5/month with the container setup, deploy-azure-appservice.sh).
 #

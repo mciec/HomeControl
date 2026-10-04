@@ -30,9 +30,10 @@ HomeControl/
 ├── docker/dev/                    # dev-container image + compose
 ├── Dockerfile  docker-compose.yml # production image (frontend served from the backend's wwwroot)
 ├── run-dev.sh  run-prod.sh        # run locally
-├── deploy-azure-code.sh           # deploy to Azure App Service B1, always-on, no registry (current target)
-├── deploy-azure-appservice.sh     # same, but as a Docker image built in ACR (alternative)
-├── deploy-azure-aca.sh  deploy-azure.sh   # alternatives: Container Apps / Container Instances
+├── deploy-azure-aca.sh            # deploy to Azure Container Apps from the GHCR image (current target, ~$4/month)
+├── deploy-azure-code.sh           # alternative: App Service B1, zip deploy, no registry (~$12/month)
+├── deploy-azure-appservice.sh  deploy-azure.sh   # alternatives: App Service container (ACR) / Container Instances
+├── .github/workflows/             # publish-image.yml: builds the image -> ghcr.io/mciec/homecontrol
 ├── build-mobile-release.sh        # Android release APK
 ├── test-docker.sh  test-backend-startup.sh
 └── AZURE_DEPLOYMENT.md  SETUP.md  README.md
@@ -67,7 +68,7 @@ Open **http://localhost:3000**. See [SETUP.md](SETUP.md) for the step-by-step ve
 | `./run-prod.sh` | Builds the frontend into the backend's `wwwroot`, publishes and runs in `Production`, passing user secrets as environment variables. |
 | `./test-docker.sh` | Builds the production image and runs it on `:8080`/`:8081`. |
 | `./test-backend-startup.sh [s]` | Boots the backend for a few seconds and reports whether it stayed up. |
-| `./deploy-azure-code.sh` | Builds locally and zip-deploys to App Service B1 (Always On, ~$12.40/month, no container registry) - see [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md). `deploy-azure-appservice.sh` is the Docker-image variant. |
+| `./deploy-azure-aca.sh` | Rolls the published GHCR image out to Azure Container Apps (one always-on replica, ~$4/month) - see [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md). `deploy-azure-code.sh` (App Service zip deploy), `deploy-azure-appservice.sh` (App Service + ACR image) and `deploy-azure.sh` (Container Instances) are the alternatives. |
 | `./build-mobile-release.sh [--aab]` | Type-checks, lints, tests and builds the Android release APK. |
 
 ## Configuration reference
@@ -98,7 +99,7 @@ Missing required settings stop the app at startup with a message naming the key 
 Create an OAuth 2.0 *Web application* client in the [Google Cloud Console](https://console.cloud.google.com/) and register these **authorized redirect URIs** (the callback is always served by the backend, even when you browse the Vite dev server):
 
 - `https://localhost:7000/signin-google` - local dev and `run-prod.sh`
-- `https://homecontrol-app.azurewebsites.net/signin-google` - Azure
+- `https://homecontrol-app.greenwater-2aa7f6a2.polandcentral.azurecontainerapps.io/signin-google` - Azure (production)
 - `http://localhost:8080/signin-google` and `https://localhost:8081/signin-google` - only if you use `test-docker.sh`
 
 Only the e-mail addresses in `AllowedEmails` (`HomeControlBackEnd/Features/Auth/AuthController.cs`) can sign in; everyone else is signed out again and redirected to `/?error=unauthorized`. In development a successful login returns you to `http://localhost:3000`.
@@ -127,7 +128,7 @@ In development `GET /openapi/v1.json` serves the OpenAPI document.
 
 ## Docker & deployment
 
-`Dockerfile` builds the frontend, publishes the backend and ships both in one image; `docker-compose.yml` and `test-docker.sh` run it locally. Production runs on Azure App Service B1 (`https://homecontrol-app.azurewebsites.net`), deployed as code by `deploy-azure-code.sh` (no image needed); `deploy-azure-appservice.sh` deploys the Docker image instead. `docker/dev/` is the development container (`INSTALL_ANDROID=1` adds the Android toolchain). Details: [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md).
+`Dockerfile` builds the frontend, publishes the backend and ships both in one image; `docker-compose.yml` and `test-docker.sh` run it locally. Production runs on Azure Container Apps (`https://homecontrol-app.greenwater-2aa7f6a2.polandcentral.azurecontainerapps.io`): GitHub Actions publishes the image to `ghcr.io/mciec/homecontrol` and `deploy-azure-aca.sh` rolls it out; the App Service variants are kept as alternatives. `docker/dev/` is the development container (`INSTALL_ANDROID=1` adds the Android toolchain). Details: [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md).
 
 ## Development notes
 
