@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Azure Container Apps deployment for HomeControl.
-# (deploy-azure-appservice.sh is the primary target; this is the ACA variant.)
+# (deploy-azure-code.sh is the primary target; this is the ACA variant.)
 #
 #   ./deploy-azure-aca.sh                                       # interactive
 #   ./deploy-azure-aca.sh -g homecontrol-rg -n homecontrol-app -y

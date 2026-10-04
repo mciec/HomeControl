@@ -69,7 +69,7 @@ The dev backend serves HTTPS on `localhost:7000` with a self-signed certificate,
 ```bash
 ./run-prod.sh                       # build frontend into wwwroot, publish, run in Production
 ./test-docker.sh                    # production image in Docker on :8080/:8081
-./deploy-azure-appservice.sh -g homecontrol-rg -n homecontrol-app -y     # see AZURE_DEPLOYMENT.md
+./deploy-azure-code.sh -g homecontrol-rg -n homecontrol-app -y     # Azure App Service B1, always-on - see AZURE_DEPLOYMENT.md
 INSTALL_ANDROID=1 ./scripts/setup-ubuntu.sh && ./build-mobile-release.sh # Android release APK
 ```
 

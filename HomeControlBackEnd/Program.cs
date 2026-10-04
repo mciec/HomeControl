@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
@@ -74,6 +75,17 @@ builder.Services.AddAuthentication(options =>
 });
 
 builder.Services.AddAuthorization();
+
+// Persist the cookie-encryption keys when a path is configured (the Azure free-tier deployment sets
+// DataProtection__KeysPath=/home/...). On a plan that unloads idle apps the process restarts often;
+// with the default in-memory/ephemeral key ring every restart would invalidate everyone's login cookie.
+var dataProtectionKeysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(dataProtectionKeysPath))
+{
+    builder.Services.AddDataProtection()
+        .SetApplicationName("HomeControl")
+        .PersistKeysToFileSystem(new DirectoryInfo(dataProtectionKeysPath));
+}
 
 var app = builder.Build();
 

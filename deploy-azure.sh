@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Azure Container Instances deployment for HomeControl.
-# (deploy-azure-appservice.sh is the primary target; this is the ACI variant.)
+# (deploy-azure-code.sh is the primary target; this is the ACI variant.)
 #
 #   ./deploy-azure.sh                                       # interactive
 #   ./deploy-azure.sh -g homecontrol-rg -n homecontrol-app -y

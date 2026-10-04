@@ -166,20 +166,31 @@ public sealed class DeviceMqttListenerService : BackgroundService, IDeviceComman
         }
     }
 
-    public Task<bool> TryPublishOverrideAsync(string deviceId, OverrideDirection direction, CancellationToken ct)
+    // How long an override waits for the broker connection. On a plan that unloads idle apps the first
+    // request after a cold start arrives while MQTT is still connecting (a few seconds); failing it
+    // immediately with 503 would make the first click after every idle period fail.
+    private static readonly TimeSpan BrokerConnectWait = TimeSpan.FromSeconds(8);
+
+    public async Task<bool> TryPublishOverrideAsync(string deviceId, OverrideDirection direction, CancellationToken ct)
     {
         var device = _registry.GetConfig(deviceId);
         if (device is null || device.Type != DeviceType.LedStripeWithSensors || string.IsNullOrEmpty(device.OverrideTopic))
         {
-            return Task.FromResult(false);
+            return false;
         }
 
-        if (!_mqttClient.IsConnected)
+        var deadline = DateTime.UtcNow + BrokerConnectWait;
+        while (!_mqttClient.IsConnected)
         {
-            return Task.FromResult(false);
+            if (DateTime.UtcNow >= deadline)
+            {
+                return false;
+            }
+
+            await Task.Delay(250, ct).ConfigureAwait(false);
         }
 
         _mqttClient.Publish(device.OverrideTopic, direction.ToString().ToUpperInvariant());
-        return Task.FromResult(true);
+        return true;
     }
 }

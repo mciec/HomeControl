@@ -30,7 +30,8 @@ HomeControl/
 ├── docker/dev/                    # dev-container image + compose
 ├── Dockerfile  docker-compose.yml # production image (frontend served from the backend's wwwroot)
 ├── run-dev.sh  run-prod.sh        # run locally
-├── deploy-azure-appservice.sh     # deploy to Azure App Service (current target)
+├── deploy-azure-code.sh           # deploy to Azure App Service B1, always-on, no registry (current target)
+├── deploy-azure-appservice.sh     # same, but as a Docker image built in ACR (alternative)
 ├── deploy-azure-aca.sh  deploy-azure.sh   # alternatives: Container Apps / Container Instances
 ├── build-mobile-release.sh        # Android release APK
 ├── test-docker.sh  test-backend-startup.sh
@@ -66,7 +67,7 @@ Open **http://localhost:3000**. See [SETUP.md](SETUP.md) for the step-by-step ve
 | `./run-prod.sh` | Builds the frontend into the backend's `wwwroot`, publishes and runs in `Production`, passing user secrets as environment variables. |
 | `./test-docker.sh` | Builds the production image and runs it on `:8080`/`:8081`. |
 | `./test-backend-startup.sh [s]` | Boots the backend for a few seconds and reports whether it stayed up. |
-| `./deploy-azure-appservice.sh` | Builds the image remotely in ACR and deploys to App Service - see [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md). |
+| `./deploy-azure-code.sh` | Builds locally and zip-deploys to App Service B1 (Always On, ~$12.40/month, no container registry) - see [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md). `deploy-azure-appservice.sh` is the Docker-image variant. |
 | `./build-mobile-release.sh [--aab]` | Type-checks, lints, tests and builds the Android release APK. |
 
 ## Configuration reference
@@ -126,7 +127,7 @@ In development `GET /openapi/v1.json` serves the OpenAPI document.
 
 ## Docker & deployment
 
-`Dockerfile` builds the frontend, publishes the backend and ships both in one image; `docker-compose.yml` and `test-docker.sh` run it locally. `deploy-azure-appservice.sh` deploys it to Azure (App Service, `https://homecontrol-app.azurewebsites.net`). `docker/dev/` is the development container (`INSTALL_ANDROID=1` adds the Android toolchain). Details: [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md).
+`Dockerfile` builds the frontend, publishes the backend and ships both in one image; `docker-compose.yml` and `test-docker.sh` run it locally. Production runs on Azure App Service B1 (`https://homecontrol-app.azurewebsites.net`), deployed as code by `deploy-azure-code.sh` (no image needed); `deploy-azure-appservice.sh` deploys the Docker image instead. `docker/dev/` is the development container (`INSTALL_ANDROID=1` adds the Android toolchain). Details: [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md).
 
 ## Development notes
 

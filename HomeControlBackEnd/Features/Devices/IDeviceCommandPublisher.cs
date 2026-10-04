@@ -9,7 +9,8 @@ public interface IDeviceCommandPublisher
     /// <summary>
     /// Attempts to publish an override command for the given device and direction.
     /// Returns false if the device/type doesn't support overrides, if the device's
-    /// override topic isn't configured, or if the MQTT client is not currently connected.
+    /// override topic isn't configured, or if the MQTT client is still not connected after a short wait
+    /// (so a request arriving right after a cold start can ride out the broker reconnect).
     /// This is fire-and-forget with respect to the resulting animation — a true result
     /// only means the publish attempt was made while connected, not that the device acted on it.
     /// </summary>
