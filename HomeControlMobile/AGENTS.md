@@ -20,4 +20,4 @@ notes.
   device clock.
 - Verify with `npx tsc --noEmit && npx eslint . && npx jest`; build the release APK with
   `../build-mobile-release.sh` (needs `INSTALL_ANDROID=1 ../scripts/setup-ubuntu.sh` once).
-
+- App icons are generated, not hand-edited: change `scripts/generate-icons.mjs` and re-run it (see README "App icon").
