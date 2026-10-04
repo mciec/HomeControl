@@ -21,6 +21,15 @@ The app mirrors the web frontend's design: a dark navy theme with a cyan → ind
 
 Behaviour matches the web app too: sign-in landing page with feature highlights, a Home dashboard with a Devices shortcut and account panel, device list/detail, override buttons that turn into a live progress bar (red for override, green for motion) counting down against **server time** (`serverTimeUtc` → `serverClockOffsetMs` in `devicesSlice`, so a skewed phone clock cannot shift it). Navigation stays native to mobile - bottom tabs plus a stack - instead of the web's slide-in menu; the header carries the user's initial and a log-out button.
 
+## App icon
+
+One design (gradient squircle, house outline, three glowing LEDs and a light strip - the same mark as the web favicon) drives every icon: Android legacy + round launcher icons, a modern **adaptive icon** with a monochrome layer for Android 13 themed icons (`mipmap-anydpi-v26/`), the complete iOS `AppIcon.appiconset` (opaque PNGs, no alpha) and the reference PNGs in `assets/` (`assets/icon.svg` is the editable master). Regenerate everything after changing the design in `scripts/generate-icons.mjs`:
+
+```bash
+npm i --no-save playwright && npx playwright install chromium
+node scripts/generate-icons.mjs
+```
+
 ## Stack & upgrades
 
 React Native **0.87.1** (New Architecture; Android edge-to-edge is on, per the 0.87 template). Versions are deliberately pinned to what that release supports:
