@@ -112,6 +112,35 @@ else
 }
 app.UseCors("AllowFrontend");
 
+// One log line per hub / devices request (hub requests also when they *start*, since a
+// long-poll can stay open for ~90 s) - the live-update path is otherwise invisible because
+// "Microsoft.AspNetCore" is capped at Warning and App Service cannot override dotted log
+// categories through environment variables.
+var requestLog = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("HomeControl.Requests");
+app.Use(async (context, next) =>
+{
+    var path = context.Request.Path;
+    var isHub = path.StartsWithSegments("/hubs");
+    if (!isHub && !path.StartsWithSegments("/api/devices"))
+    {
+        await next();
+        return;
+    }
+
+    var agent = context.Request.Headers.UserAgent.ToString();
+    if (isHub)
+        requestLog.LogInformation("-> {Method} {Path}{Query} agent '{Agent}'", context.Request.Method, path, context.Request.QueryString, agent);
+
+    var started = System.Diagnostics.Stopwatch.GetTimestamp();
+    await next();
+    requestLog.LogInformation(
+        "<- {Method} {Path} {Status} in {Elapsed:F0} ms (user {User}, agent '{Agent}')",
+        context.Request.Method, path, context.Response.StatusCode,
+        System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds,
+        context.User.Identity?.IsAuthenticated == true ? "authenticated" : "anonymous",
+        agent);
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 

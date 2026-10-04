@@ -21,3 +21,6 @@ notes.
 - Verify with `npx tsc --noEmit && npx eslint . && npx jest`; build the release APK with
   `../build-mobile-release.sh` (needs `INSTALL_ANDROID=1 ../scripts/setup-ubuntu.sh` once).
 - App icons are generated, not hand-edited: change `scripts/generate-icons.mjs` and re-run it (see README "App icon").
+- `src/polyfills.ts` (react-native-url-polyfill) must remain the first import in `index.ts`: without it SignalR's
+  negotiation throws on RN's read-only `URL.pathname` and the live-update connection never starts.
+

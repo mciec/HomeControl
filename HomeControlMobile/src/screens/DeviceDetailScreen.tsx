@@ -1,5 +1,12 @@
-import { useCallback, useEffect } from 'react';
-import { ActivityIndicator, AppState, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ActivityIndicator,
+  AppState,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useDispatch, useSelector } from 'react-redux';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { HubConnection } from '@microsoft/signalr';
@@ -31,6 +38,17 @@ import { colors, spacing } from '../theme';
 
 type Props = NativeStackScreenProps<DevicesStackParamList, 'DeviceDetail'>;
 
+// How often the detail is silently re-fetched while the live-update (SignalR) connection is not
+// up, and when after an override is sent - the device confirms within ~0.5 s - to pick it up.
+const FALLBACK_POLL_INTERVAL_MS = 3000;
+const POST_OVERRIDE_REFRESH_DELAYS_MS = [700, 1500, 3000];
+
+type HubStatus = 'connecting' | 'live' | 'reconnecting' | 'offline';
+
+function describeError(err: unknown): string {
+  return err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+}
+
 // Small buffer added on top of the computed remaining time before firing the
 // local-expiry fallback, so it never races ahead of a Stopped push that's
 // already in flight for a natural (non-dropped) expiry.
@@ -46,7 +64,30 @@ const ANIMATION_EXPIRY_SAFETY_MARGIN_MS = 300;
 function DeviceDetailScreen({ route, navigation }: Props) {
   const { deviceId } = route.params;
   const dispatch = useDispatch();
-  const { selectedDevice, detailLoading, detailError, serverClockOffsetMs } = useSelector((state: RootState) => state.devices);
+  const { selectedDevice, detailLoading, detailError, serverClockOffsetMs } =
+    useSelector((state: RootState) => state.devices);
+
+  // Live-update (SignalR) connection state, shown in the header so a silently broken connection
+  // is visible instead of just "nothing ever updates".
+  const [hub, setHub] = useState<{ status: HubStatus; error?: string }>({
+    status: 'connecting',
+  });
+  const postOverrideTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Re-fetches the detail without the loading spinner / title side effects of fetchDetail.
+  const refreshSilently = useCallback(async () => {
+    try {
+      dispatch(setSelectedDevice(await devicesService.get(deviceId)));
+    } catch {
+      // Best-effort: the next tick (or the live connection) will try again.
+    }
+  }, [deviceId, dispatch]);
+
+  const scheduleRefreshAfterOverride = useCallback(() => {
+    POST_OVERRIDE_REFRESH_DELAYS_MS.forEach(delay => {
+      postOverrideTimers.current.push(setTimeout(refreshSilently, delay));
+    });
+  }, [refreshSilently]);
 
   const fetchDetail = useCallback(async () => {
     dispatch(setDetailLoading(true));
@@ -62,30 +103,58 @@ function DeviceDetailScreen({ route, navigation }: Props) {
   useEffect(() => {
     fetchDetail();
 
+    // Set on cleanup so late hub callbacks (close fires on our own stop()) don't touch state.
+    let disposed = false;
+    setHub({ status: 'connecting' });
     const connection: HubConnection = createDeviceHubConnection();
 
-    subscribeToDeviceStateChanged(connection, (payload) => {
+    subscribeToDeviceStateChanged(connection, payload => {
       dispatch(deviceStateChanged(payload));
     });
 
     onDeviceHubReconnected(connection, () => {
       // A gap in live updates may have been missed while reconnecting -
       // re-fetch to resync (mirrors the mount-time fetchDetail).
+      if (!disposed) {
+        setHub({ status: 'live' });
+      }
       fetchDetail();
     });
 
-    onDeviceHubReconnecting(connection);
+    onDeviceHubReconnecting(connection, () => {
+      if (!disposed) {
+        setHub({ status: 'reconnecting' });
+      }
+    });
 
-    onDeviceHubClosed(connection, (err) => {
+    onDeviceHubClosed(connection, err => {
       console.error('Devices hub connection closed', deviceId, err);
+      if (!disposed) {
+        setHub({
+          status: 'offline',
+          error: err ? describeError(err) : undefined,
+        });
+      }
     });
 
-    startDeviceHubConnection(connection).catch((err) => {
-      console.error('Failed to connect to devices hub', err);
-    });
+    startDeviceHubConnection(connection)
+      .then(() => {
+        if (!disposed) {
+          setHub({ status: 'live' });
+        }
+      })
+      .catch(err => {
+        console.error('Failed to connect to devices hub', err);
+        if (!disposed) {
+          setHub({ status: 'offline', error: describeError(err) });
+        }
+      });
 
     return () => {
-      stopDeviceHubConnection(connection).catch((err) => {
+      disposed = true;
+      postOverrideTimers.current.forEach(clearTimeout);
+      postOverrideTimers.current = [];
+      stopDeviceHubConnection(connection).catch(err => {
         console.error('Failed to disconnect from devices hub', err);
       });
       dispatch(clearSelectedDevice());
@@ -94,6 +163,15 @@ function DeviceDetailScreen({ route, navigation }: Props) {
     // change, none of which should re-run the hub connection setup mid-visit).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId]);
+
+  // Safety net: while the live connection is not up, poll quietly so the screen still updates.
+  useEffect(() => {
+    if (hub.status === 'live') {
+      return;
+    }
+    const id = setInterval(refreshSilently, FALLBACK_POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [hub.status, refreshSilently]);
 
   // Client-side fallback: a Stopped push may never arrive (dropped MQTT
   // message, hub hiccup, etc.), so also schedule a local expiry once the
@@ -116,12 +194,17 @@ function DeviceDetailScreen({ route, navigation }: Props) {
     const endsAtMs = Date.parse(endsAtUtc);
 
     const expire = () => {
-      dispatch(animationLocallyExpired({ deviceId: currentDeviceId, startedAtUtc }));
+      dispatch(
+        animationLocallyExpired({ deviceId: currentDeviceId, startedAtUtc }),
+      );
     };
 
     // Server time, not the device's clock - see serverClockOffsetMs.
     const remainingMs = endsAtMs - (Date.now() + serverClockOffsetMs);
-    const timeoutId = setTimeout(expire, remainingMs > 0 ? remainingMs + ANIMATION_EXPIRY_SAFETY_MARGIN_MS : 0);
+    const timeoutId = setTimeout(
+      expire,
+      remainingMs > 0 ? remainingMs + ANIMATION_EXPIRY_SAFETY_MARGIN_MS : 0,
+    );
 
     // setTimeout can be throttled or suspended while the app is backgrounded
     // (iOS/Android both do this). Re-check on foregrounding so a stalled
@@ -129,11 +212,17 @@ function DeviceDetailScreen({ route, navigation }: Props) {
     // after the user returns - if endsAtUtc has already passed by then,
     // expire right away instead of waiting on the (possibly still-delayed)
     // timer to catch up.
-    const appStateSubscription = AppState.addEventListener('change', (nextState) => {
-      if (nextState === 'active' && Date.now() + serverClockOffsetMs >= endsAtMs) {
-        expire();
-      }
-    });
+    const appStateSubscription = AppState.addEventListener(
+      'change',
+      nextState => {
+        if (
+          nextState === 'active' &&
+          Date.now() + serverClockOffsetMs >= endsAtMs
+        ) {
+          expire();
+        }
+      },
+    );
 
     return () => {
       clearTimeout(timeoutId);
@@ -169,7 +258,36 @@ function DeviceDetailScreen({ route, navigation }: Props) {
             </View>
             <View style={styles.body}>
               {selectedDevice.type === 'LedStripeWithSensors' && (
-                <LedStripeWithSensorsDetail deviceId={selectedDevice.id} state={selectedDevice.state} />
+                <LedStripeWithSensorsDetail
+                  deviceId={selectedDevice.id}
+                  state={selectedDevice.state}
+                  onOverrideSent={scheduleRefreshAfterOverride}
+                />
+              )}
+              <View
+                style={styles.hubRow}
+                accessibilityLabel={`Live updates: ${hub.status}`}
+              >
+                <View
+                  style={[
+                    styles.hubDot,
+                    hub.status === 'live'
+                      ? styles.hubDotLive
+                      : hub.status === 'offline'
+                      ? styles.hubDotOffline
+                      : styles.hubDotPending,
+                  ]}
+                />
+                <Text style={styles.hubText}>
+                  {hub.status === 'live'
+                    ? 'Live updates on'
+                    : hub.status === 'offline'
+                    ? 'Live updates unavailable - refreshing every few seconds'
+                    : 'Connecting live updates...'}
+                </Text>
+              </View>
+              {hub.status === 'offline' && hub.error && (
+                <Text style={styles.hubError}>{hub.error}</Text>
               )}
             </View>
           </>
@@ -213,6 +331,35 @@ const styles = StyleSheet.create({
   },
   body: {
     padding: spacing.lg - 4,
+  },
+  hubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: spacing.md,
+  },
+  hubDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  hubDotLive: {
+    backgroundColor: colors.success,
+  },
+  hubDotPending: {
+    backgroundColor: colors.accent,
+  },
+  hubDotOffline: {
+    backgroundColor: colors.danger,
+  },
+  hubText: {
+    color: colors.muted,
+    fontSize: 12,
+  },
+  hubError: {
+    color: colors.errorText,
+    fontSize: 11,
+    marginTop: 4,
   },
 });
 

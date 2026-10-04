@@ -119,6 +119,10 @@ The hub connection (`deviceHub.ts`) is forced to **`HttpTransportType.LongPollin
 - **WebSockets** - the hub is authenticated by the session cookie, and React Native's raw WebSocket implementation isn't guaranteed to forward the native cookie store on the upgrade handshake the way XHR/fetch-based transports do. This is the operative reason and is independent of certificate trust.
 - **Server-Sent Events** - bare React Native has no global `EventSource` and no polyfill is installed, and `@microsoft/signalr` only wires one up when `typeof EventSource !== 'undefined'`, so requesting it could only ever lose the negotiation to long polling.
 
+**`URL` polyfill (required):** React Native's built-in `URL` has read-only properties, and SignalR negotiates by assigning `url.pathname += "/negotiate"` - on Hermes that throws `TypeError: cannot assign to property 'pathname' which has only a getter` *before any request is sent*, so the live connection silently never starts (the server never sees a `/hubs/devices` request). `src/polyfills.ts` installs `react-native-url-polyfill` and must stay the **first import** in `index.ts`; `__tests__/signalrUrl.test.ts` guards it.
+
+**Resilience:** the device detail screen shows the live-update status (and the error text if it fails), re-fetches the state shortly after an override is sent, and polls every 3 s while the live connection is not up - so the UI keeps working if the hub is ever unavailable.
+
 The cost is slightly higher latency than a WebSocket. Worth re-testing on a device whether WebSockets carry the cookie reliably on both platforms; if so the restriction can be lifted.
 
 ## Environment configuration

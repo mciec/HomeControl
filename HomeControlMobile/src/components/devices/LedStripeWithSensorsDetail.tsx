@@ -13,6 +13,9 @@ import { spacing } from '../../theme';
 interface LedStripeWithSensorsDetailProps {
   deviceId: string;
   state: LedStripeWithSensorsState;
+  // Called after the backend accepted an override (HTTP 202) so the screen can refresh the device
+  // state shortly afterwards, independent of the live-update connection.
+  onOverrideSent?: () => void;
 }
 
 function extractErrorMessage(
@@ -31,6 +34,7 @@ function extractErrorMessage(
 function LedStripeWithSensorsDetail({
   deviceId,
   state,
+  onOverrideSent,
 }: LedStripeWithSensorsDetailProps) {
   const [leftLoading, setLeftLoading] = useState(false);
   const [rightLoading, setRightLoading] = useState(false);
@@ -45,6 +49,7 @@ function LedStripeWithSensorsDetail({
     setError(null);
     try {
       await devicesService.sendOverride(deviceId, direction);
+      onOverrideSent?.();
     } catch (err) {
       setError(extractErrorMessage(err, direction));
     } finally {
