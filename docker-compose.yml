@@ -1,19 +1,29 @@
-version: '3.8'
-
+# Runs the production image (React frontend served by the .NET backend) locally.
+#
+#   export Google__ClientId=... Google__ClientSecret=... Mqtt__Host=... Mqtt__User=... Mqtt__Password=...
+#   docker compose up --build
+#
+# ./test-docker.sh does the same without compose and reads these from `dotnet user-secrets`.
+# The image already bakes in ASPNETCORE_URLS and the self-signed dev certificate (see Dockerfile);
+# only configuration that differs per run is set here. See README.md "Configuration reference".
 services:
   homecontrol:
     build:
       context: .
       dockerfile: Dockerfile
-    ports:
-      - "8080:8080"
-      - "8081:8081"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Production
-      - ASPNETCORE_URLS=http://+:8080;https://+:8081
-      - ASPNETCORE_Kestrel__Certificates__Default__Password=YourSecurePassword123!
-      - ASPNETCORE_Kestrel__Certificates__Default__Path=/app/aspnetapp.pfx
-      - Google__ClientId=${Google__ClientId}
-      - Google__ClientSecret=${Google__ClientSecret}
-    restart: unless-stopped
     container_name: homecontrol-app
+    ports:
+      - "8080:8080"   # http
+      - "8081:8081"   # https (self-signed certificate)
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      # Required: the backend refuses to start without them (clear startup error otherwise).
+      Google__ClientId: ${Google__ClientId:?set Google__ClientId}
+      Google__ClientSecret: ${Google__ClientSecret:?set Google__ClientSecret}
+      Mqtt__Host: ${Mqtt__Host:?set Mqtt__Host}
+      Mqtt__User: ${Mqtt__User:?set Mqtt__User}
+      Mqtt__Password: ${Mqtt__Password:?set Mqtt__Password}
+      # A broker allows one connection per ClientId, so this must differ from the Azure
+      # deployment's (homecontrol-backend) or the two keep kicking each other off.
+      Mqtt__ClientId: ${Mqtt__ClientId:-homecontrol-backend-docker}
+    restart: unless-stopped

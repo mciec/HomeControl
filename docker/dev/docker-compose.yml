@@ -1,0 +1,35 @@
+# Dev container. The source lives in the named volume 'home-control-src', which
+# Docker stores on its own ext4 disk - not on a Windows bind mount.
+#
+#   docker compose -f docker/dev/docker-compose.yml up -d
+#   docker exec -it -w /home/src/home-control homecontrol-dev bash
+#
+# Inside the container (run-dev.sh detects Docker and binds to 0.0.0.0 itself):
+#   ./run-dev.sh                       # backend + frontend with hot reload
+#   ./build-mobile-release.sh          # Android APK - needs the image built with INSTALL_ANDROID=1
+#   Mqtt__ClientId=homecontrol-backend-dev ./run-dev.sh   # when Azure is also up (see README)
+services:
+  dev:
+    image: homecontrol-dev:ubuntu-26.04
+    build:
+      context: ../../scripts
+      dockerfile: ../docker/dev/Dockerfile
+      args:
+        INSTALL_ANDROID: ${INSTALL_ANDROID:-0}   # INSTALL_ANDROID=1 docker compose ... build
+    container_name: homecontrol-dev
+    hostname: homecontrol-dev
+    working_dir: /home/src/home-control
+    ports:
+      - "3000:3000"   # Vite
+      - "7000:7000"   # backend https
+      - "5000:5000"   # backend http
+    volumes:
+      - home-control-src:/home/src/home-control
+      - dev-home:/home/ubuntu   # shell history, git config, nuget/npm caches
+    init: true
+    tty: true
+    stdin_open: true
+
+volumes:
+  home-control-src:
+  dev-home:

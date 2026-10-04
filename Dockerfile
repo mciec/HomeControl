@@ -20,6 +20,12 @@ FROM mcr.microsoft.com/dotnet/sdk:10.0 AS backend-build
 
 WORKDIR /app/backend
 
+# HomeControlBackEnd.csproj has a ProjectReference to ../Shared/MqttManager,
+# which resolves (relative to WORKDIR /app/backend) to /app/Shared/MqttManager -
+# must exist before restore/publish or both fail with CS0246 "MqttManager
+# could not be found".
+COPY Shared/ /app/Shared/
+
 # Copy backend project files
 COPY HomeControlBackEnd/*.csproj ./
 

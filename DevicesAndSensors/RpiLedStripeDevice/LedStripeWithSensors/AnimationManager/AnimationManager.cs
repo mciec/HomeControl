@@ -1,4 +1,5 @@
-﻿using LedStripeWithSensors.MqttManager;
+﻿using MqttManager;
+using LedStripeWithSensors.MqttManager;
 using Microsoft.Extensions.Options;
 using LedStripeWithSensors.MotionSensor;
 using Animations1d;
@@ -25,8 +26,8 @@ internal sealed class AnimationManager
         TimeOnly.Parse("15:54"), TimeOnly.Parse("16:49"), TimeOnly.Parse("17:42"), TimeOnly.Parse("19:36"), TimeOnly.Parse("20:26"), TimeOnly.Parse("21:01"),
         TimeOnly.Parse("20:52"), TimeOnly.Parse("20:02"), TimeOnly.Parse("18:52"), TimeOnly.Parse("17:43"), TimeOnly.Parse("15:45"), TimeOnly.Parse("15:25") };
 
-    private const string MessageOverrideLeft = "LEFT";
-    private const string MessageOverrideRight = "RIGHT";
+    private const string MessageLeft = "LEFT";
+    private const string MessageRight = "RIGHT";
     private readonly bool _verbose = false;
     private readonly int _frameDurationMs;
     private readonly int _switchOffDelayMs;
@@ -35,6 +36,7 @@ internal sealed class AnimationManager
     private readonly int _rightMotionDetectorPin;
     private readonly AnimationFactory _animationFactory;
     private readonly MqttClient _mqttClient;
+    private readonly EntranceMqttTopicsConfig _topics;
     private readonly ILogger<AnimationManager> _logger;
 
     private bool MovementLeft { get; set; } = false;
@@ -49,6 +51,7 @@ internal sealed class AnimationManager
         IOptions<AnimationManagerConfig> animationManagerConfig,
         AnimationFactory animationFactory,
         MqttClient mqttClient,
+        IOptions<EntranceMqttTopicsConfig> entranceMqttTopicsConfig,
         ILogger<AnimationManager> logger)
     {
         _leftMotionDetectorPin = motionSensorsConfig.Value.LeftMotionDetectorPin;
@@ -58,6 +61,7 @@ internal sealed class AnimationManager
         _dontRunAtDaylight = animationManagerConfig.Value.DontRunAtDaylight;
         _animationFactory = animationFactory;
         _mqttClient = mqttClient;
+        _topics = entranceMqttTopicsConfig.Value;
         _logger = logger;
     }
 
@@ -73,16 +77,16 @@ internal sealed class AnimationManager
             {
                 if (IgnoreDetectedMovement())
                 {
-                    _logger.LogInformation("Motion detected: {direction}, but it's daylight at {time}", "LEFT", DateTime.Now.ToShortTimeString());
+                    _logger.LogInformation("Motion detected: {direction}, but it's daylight at {time}", MessageLeft, DateTime.Now.ToShortTimeString());
                     return;
                 }
                 MovementLeft = true;
-                _logger.LogInformation("Motion detected: {direction}", "LEFT");
+                _logger.LogInformation("Motion detected: {direction}", MessageLeft);
             },
             () =>
             {
                 MovementLeft = false;
-                _logger.LogInformation("Motion stopped: {direction}", "LEFT");
+                _logger.LogInformation("Motion stopped: {direction}", MessageLeft);
             });
 
         try
@@ -91,7 +95,7 @@ internal sealed class AnimationManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "LEFT motion detector disabled");
+            _logger.LogError(ex, "{direction} motion detector disabled", MessageLeft);
         }
 
         using var motionDetectorRight = MotionSensor.MotionSensor.CreateSensor(_rightMotionDetectorPin,
@@ -99,16 +103,16 @@ internal sealed class AnimationManager
             {
                 if (IgnoreDetectedMovement())
                 {
-                    _logger.LogInformation("Motion detected: {direction}, ignored at {time}", "RIGHT", DateTime.Now.ToShortTimeString());
+                    _logger.LogInformation("Motion detected: {direction}, ignored at {time}", MessageRight, DateTime.Now.ToShortTimeString());
                     return;
                 }
                 MovementRight = true;
-                _logger.LogInformation("Motion detected: {direction}", "RIGHT");
+                _logger.LogInformation("Motion detected: {direction}", MessageRight);
             },
             () =>
             {
                 MovementRight = false;
-                _logger.LogInformation("Motion stopped: {direction}", "RIGHT");
+                _logger.LogInformation("Motion stopped: {direction}", MessageRight);
             });
         try
         {
@@ -116,25 +120,32 @@ internal sealed class AnimationManager
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "RIGHT motion detector disabled");
+            _logger.LogError(ex, "{direction} motion detector disabled", MessageRight);
         }
 
-        using var animation = _animationFactory.GetAnimation(typeof(TraceAnimation));
+        var animation = _animationFactory.GetRandomAnimation();
 
-        _mqttClient.Connect(
-            () =>
+        _mqttClient.MessageReceived += (sender, args) =>
+        {
+            if (args.Topic != _topics.OverrideTopic)
+                return;
+
+            switch (args.Payload.ToUpper())
             {
-                OverrideLeft = true;
-                OverrideRight = false;
-                _logger.LogInformation("Override signal: {direction}", "LEFT");
-            },
-            () =>
-            {
-                OverrideRight = true;
-                OverrideLeft = false;
-                _logger.LogInformation("Override signal: {direction}", "RIGHT");
-            },
-            ct);
+                case MessageLeft:
+                    OverrideLeft = true;
+                    OverrideRight = false;
+                    _logger.LogInformation("{MessageLeft} OVERRIDE", MessageLeft);
+                    break;
+                case MessageRight:
+                    OverrideRight = true;
+                    OverrideLeft = false;
+                    _logger.LogInformation("{MessageRight} OVERRIDE", MessageRight);
+                    break;
+            }
+        };
+
+        _mqttClient.Connect(new[] { _topics.OverrideTopic }, ct);
 
         while (!ct.IsCancellationRequested)
         {
@@ -142,18 +153,22 @@ internal sealed class AnimationManager
 
             if (OverrideLeft)
             {
+                animation = _animationFactory.GetRandomAnimation();
                 animation.Start(Direction.LEFT);
                 State = AnimationState.OverrideLeftRunning;
                 AnimationStart = now;
                 OverrideLeft = false;
+                PublishAnimationEvent(AnimationEventType.Started, AnimationDirection.Left, AnimationSource.Override, animation.Name);
             }
             else
             if (OverrideRight)
             {
+                animation = _animationFactory.GetRandomAnimation();
                 animation.Start(Direction.RIGHT);
                 State = AnimationState.OverrideRightRunning;
                 AnimationStart = now;
                 OverrideRight = false;
+                PublishAnimationEvent(AnimationEventType.Started, AnimationDirection.Right, AnimationSource.Override, animation.Name);
             }
 
             if (State == AnimationState.OverrideLeftRunning || State == AnimationState.OverrideRightRunning)
@@ -166,6 +181,7 @@ internal sealed class AnimationManager
                     continue;
                 }
                 animation.Stop();
+                PublishAnimationEvent(AnimationEventType.Stopped, AnimationDirectionFromState, AnimationSource.Override, animation.Name);
                 State = AnimationState.Stopped;
             }
 
@@ -184,25 +200,27 @@ internal sealed class AnimationManager
                     continue;
                 }
                 animation.Stop();
+                PublishAnimationEvent(AnimationEventType.Stopped, AnimationDirectionFromState, AnimationSource.Motion, animation.Name);
                 State = AnimationState.Stopped;
             }
 
             if (MovementLeft)
             {
+                animation = _animationFactory.GetRandomAnimation();
                 animation.Start(Direction.LEFT);
                 State = AnimationState.MovementLeftRunning;
-                _mqttClient.Send(MessageOverrideLeft);
                 AnimationStart = now;
+                PublishAnimationEvent(AnimationEventType.Started, AnimationDirection.Left, AnimationSource.Motion, animation.Name);
             }
             else
             if (MovementRight)
             {
+                animation = _animationFactory.GetRandomAnimation();
                 animation.Start(Direction.RIGHT);
                 State = AnimationState.MovementRightRunning;
-                _mqttClient.Send(MessageOverrideRight);
                 AnimationStart = now;
+                PublishAnimationEvent(AnimationEventType.Started, AnimationDirection.Right, AnimationSource.Motion, animation.Name);
             }
-
         }
     }
 
@@ -223,5 +241,27 @@ internal sealed class AnimationManager
             return true;
 
         return false;
+    }
+
+    private AnimationDirection AnimationDirectionFromState => State switch
+    {
+        AnimationState.OverrideLeftRunning => AnimationDirection.Left,
+        AnimationState.OverrideRightRunning => AnimationDirection.Right,
+        AnimationState.MovementLeftRunning => AnimationDirection.Left,
+        AnimationState.MovementRightRunning => AnimationDirection.Right,
+        _ => AnimationDirection.Left
+    };
+
+    private void PublishAnimationEvent(AnimationEventType eventType, AnimationDirection direction, AnimationSource source, string animationName)
+    {
+        var message = new AnimationEventMessage(
+            eventType,
+            direction,
+            source,
+            animationName,
+            AnimationStart.ToUniversalTime(),
+            _switchOffDelayMs);
+
+        _mqttClient.Publish(_topics.MotionDetectedTopic, message.ToJson());
     }
 }

@@ -15,4 +15,5 @@ public interface IAnimation : IDisposable
     void Stop();
     void Start(Direction direction);
     IDisplay Display { get; }
+    string Name { get; }
 }

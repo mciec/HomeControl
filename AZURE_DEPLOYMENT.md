@@ -1,12 +1,29 @@
 # Azure Deployment Guide
 
-This guide covers deploying the HomeControl application to Microsoft Azure using Azure Container Apps.
+This guide covers deploying the HomeControl application to Microsoft Azure.
+
+## Current deployment (App Service) - TL;DR
+
+The live app runs on **Azure App Service** (`homecontrol-app` in resource group `homecontrol-rg`,
+`https://homecontrol-app.azurewebsites.net`). Frontend and backend ship as one Docker image
+(the React build is served from the backend's `wwwroot`), built remotely by `az acr build` -
+no local Docker needed. From Ubuntu/WSL:
+
+```bash
+INSTALL_AZ_CLI=1 ./scripts/setup-ubuntu.sh       # once: installs the Azure CLI
+az login --use-device-code                        # once per machine
+./deploy-azure-appservice.sh -g homecontrol-rg -n homecontrol-app -y
+```
+
+Google and MQTT secrets are read from the backend's `dotnet user-secrets` and set as App Service
+app settings. Other targets: `deploy-azure-aca.sh` (Container Apps), `deploy-azure.sh` (Container
+Instances) - same options, see `--help`.
 
 ## Prerequisites
 
 1. **Azure Account**: [Create a free account](https://azure.microsoft.com/free/)
 2. **Azure CLI**: [Install Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli)
-3. **Docker**: [Install Docker Desktop](https://www.docker.com/products/docker-desktop)
+3. **Docker**: only for local image testing (`test-docker.sh`); deployments build in ACR
 4. **Google OAuth Credentials**: See [SETUP.md](SETUP.md) for instructions
 
 ## Deployment Options
@@ -57,12 +74,9 @@ Before deploying, you need to add your Azure domain to Google OAuth settings:
 
 ### Step 3: Run the Automated Deployment Script
 
-```powershell
-# Make sure you're in the HomeControl directory
-cd d:\shared\repos\HomeControl
-
-# Run the deployment script
-.\deploy-azure.ps1
+```bash
+# From the repository root
+./deploy-azure-aca.sh
 ```
 
 The script will prompt you for:

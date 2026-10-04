@@ -1,18 +1,10 @@
+/* ---------- Global behaviour (unchanged from before the redesign) ---------- */
 * {
   scrollbar-width: none; /* Firefox */
   -ms-overflow-style: none; /* IE and Edge */
 }
-
 *::-webkit-scrollbar {
   display: none; /* Chrome, Safari and Opera */
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Prevent Bootstrap from adding padding when Offcanvas opens */
@@ -26,17 +18,217 @@ body.modal-open {
   min-height: 100vh;
   min-width: 0;
   width: 100%;
+  position: relative;
+  isolation: isolate; /* keeps .app-background's negative z-index inside the app */
 }
 
+/* ---------- Animated background ---------- */
+.app-background {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background:
+    radial-gradient(1200px 700px at 12% -10%, rgba(34, 211, 238, 0.14), transparent 60%),
+    radial-gradient(1000px 700px at 100% 0%, rgba(139, 92, 246, 0.16), transparent 55%),
+    linear-gradient(180deg, #0a1020 0%, #070b16 60%, #05070f 100%);
+}
 
+/* Faint dot grid, fading out toward the bottom. */
+.app-background::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(148, 163, 184, 0.22) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
+  mask-image: linear-gradient(180deg, #000 0%, transparent 75%);
+  opacity: 0.55;
+}
 
+.app-background__orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: 0.35;
+  will-change: transform;
+}
+.app-background__orb--a {
+  width: 46vmax;
+  height: 46vmax;
+  left: -14vmax;
+  top: 8vh;
+  background: #0891b2;
+  animation: orb-drift-a 26s ease-in-out infinite alternate;
+}
+.app-background__orb--b {
+  width: 40vmax;
+  height: 40vmax;
+  right: -12vmax;
+  top: 38vh;
+  background: #6d28d9;
+  animation: orb-drift-b 32s ease-in-out infinite alternate;
+}
+
+/* A strip of "LEDs" along the bottom edge that slowly shifts colour, echoing the product. */
+.app-background__strip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #22d3ee, #6366f1, #8b5cf6, #f472b6, #22d3ee);
+  background-size: 200% 100%;
+  box-shadow: 0 0 24px 4px rgba(99, 102, 241, 0.55), 0 -18px 60px 12px rgba(34, 211, 238, 0.12);
+  animation: strip-flow 14s linear infinite;
+}
+
+@keyframes orb-drift-a {
+  to { transform: translate3d(8vmax, -6vmax, 0) scale(1.08); }
+}
+@keyframes orb-drift-b {
+  to { transform: translate3d(-9vmax, 7vmax, 0) scale(1.12); }
+}
+@keyframes strip-flow {
+  to { background-position: 200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-background__orb,
+  .app-background__strip {
+    animation: none;
+  }
+}
+
+/* ---------- Navbar ---------- */
+.app-navbar {
+  background: rgba(7, 11, 22, 0.72) !important;
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: blur(14px) saturate(160%);
+  border-bottom: 1px solid var(--hc-border);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: var(--hc-text);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  text-decoration: none;
+}
+.brand:hover {
+  color: #fff;
+}
+.brand__mark {
+  filter: drop-shadow(0 4px 14px rgba(99, 102, 241, 0.5));
+}
+.brand__name span {
+  background: var(--hc-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.nav-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 14rem;
+  padding: 0.3rem 0.75rem 0.3rem 0.35rem;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.1);
+  border: 1px solid var(--hc-border);
+  color: var(--hc-text);
+  font-size: 0.85rem;
+}
+.nav-chip__avatar {
+  width: 1.7rem;
+  height: 1.7rem;
+  flex: none;
+}
+
+.menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid var(--hc-border);
+  background: rgba(148, 163, 184, 0.08);
+  color: var(--hc-text);
+}
+.menu-toggle:hover {
+  background: rgba(148, 163, 184, 0.16);
+  transform: none;
+  box-shadow: none;
+  color: #fff;
+}
+
+/* ---------- Offcanvas menu ---------- */
+/* Bootstrap's offcanvas defaults to a fixed 400px panel, wider than most phones in portrait.
+   Cap it so it reads as a slide-in drawer rather than an almost-full-bleed panel. */
+.offcanvas {
+  max-width: 85vw;
+}
+.offcanvas.app-menu {
+  background: rgba(10, 16, 32, 0.92);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
+  border-left: 1px solid var(--hc-border);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.8rem 1rem;
+  margin-bottom: 0.5rem;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--hc-text);
+  font-weight: 500;
+  text-align: left;
+}
+.menu-item:hover {
+  background: rgba(148, 163, 184, 0.1);
+  color: #fff;
+  transform: none;
+  box-shadow: none;
+}
+.menu-item.is-active {
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.14), rgba(139, 92, 246, 0.14));
+  border-color: rgba(99, 102, 241, 0.4);
+  color: #fff;
+}
+.menu-item--danger:hover {
+  color: var(--hc-danger);
+}
+
+/* ---------- Cards ---------- */
 .card {
-  border: none;
-  border-radius: 8px;
+  background: var(--hc-surface);
+  border: 1px solid var(--hc-border);
+  border-radius: var(--hc-radius);
+  box-shadow: var(--hc-shadow);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
   width: 100%;
   max-width: 100%;
   min-width: 0;
   box-sizing: border-box;
+  overflow: hidden;
+}
+
+.card-header {
+  background: rgba(148, 163, 184, 0.06);
+  border-bottom: 1px solid var(--hc-border);
+  padding: 1rem 1.25rem;
 }
 
 .card-body {
@@ -46,26 +238,114 @@ body.modal-open {
   box-sizing: border-box;
 }
 
-.btn {
-  border-radius: 6px;
-  font-weight: 500;
-  transition: all 0.3s ease;
+.card .card {
+  background: rgba(2, 6, 23, 0.4);
+  box-shadow: none;
 }
 
+.card-title,
+.card-header strong {
+  letter-spacing: -0.01em;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  border-radius: 12px;
+  font-weight: 600;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+}
 .btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-1px);
+}
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn-primary {
+  --bs-btn-border-color: transparent;
+  --bs-btn-hover-border-color: transparent;
+  --bs-btn-active-border-color: transparent;
+  --bs-btn-disabled-border-color: transparent;
+  background-image: var(--hc-gradient);
+  background-color: #6366f1;
+  color: #04111c;
+  border: 0;
+  box-shadow: 0 8px 24px -8px rgba(99, 102, 241, 0.7);
+}
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  background-image: var(--hc-gradient);
+  background-color: #6366f1;
+  color: #04111c;
+  filter: brightness(1.1);
+  box-shadow: 0 12px 28px -8px rgba(99, 102, 241, 0.85);
+}
+.btn-primary:disabled {
+  background-image: var(--hc-gradient);
+  color: #04111c;
+  opacity: 0.55;
+}
+
+.btn-success {
+  --bs-btn-border-color: transparent;
+  background: linear-gradient(135deg, #34d399, #10b981);
+  border: 0;
+  color: #03160f;
+}
+.btn-success:hover {
+  background: linear-gradient(135deg, #34d399, #10b981);
+  color: #03160f;
+  filter: brightness(1.08);
+}
+
+.btn-ghost,
+.btn-outline-light {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--hc-border-strong);
+  color: var(--hc-text);
+}
+.btn-ghost:hover,
+.btn-outline-light:hover {
+  background: rgba(148, 163, 184, 0.18);
+  border-color: rgba(148, 163, 184, 0.5);
+  color: #fff;
+}
+
+.btn-google {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  background: #fff;
+  color: #1f2937;
+  border: 0;
+  box-shadow: 0 8px 24px -10px rgba(255, 255, 255, 0.35);
+}
+.btn-google:hover {
+  background: #f8fafc;
+  color: #111827;
+}
+
+.btn:focus-visible,
+.menu-toggle:focus-visible,
+.menu-item:focus-visible,
+.list-group-item-action:focus-visible {
+  outline: 2px solid var(--hc-accent);
+  outline-offset: 2px;
+  box-shadow: none;
 }
 
 .alert {
-  border-radius: 6px;
-  border: none;
+  border-radius: 12px;
+  border: 1px solid var(--hc-border);
 }
 
+/* ---------- Code / API response ---------- */
 pre {
-  background-color: #f5f5f5;
+  background-color: rgba(2, 6, 23, 0.55);
+  color: #cbd5e1;
   padding: 1rem;
-  border-radius: 6px;
+  border-radius: 12px;
   overflow-x: hidden;
   overflow-y: auto;
   max-height: 300px;
@@ -78,18 +358,18 @@ pre {
 }
 
 code {
-  font-family: 'Courier New', Courier, monospace;
-  font-size: 0.875rem;
-  color: #333;
+  font-family: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
+  font-size: 0.85rem;
+  color: #a5f3fc;
   display: block;
   width: 100%;
   box-sizing: border-box;
 }
 
 .api-response {
-  background-color: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
+  background-color: rgba(2, 6, 23, 0.55);
+  border: 1px solid var(--hc-border);
+  border-radius: 12px;
   padding: 1rem;
   overflow-x: hidden;
   overflow-y: auto;
@@ -98,28 +378,264 @@ code {
   line-height: 1.5;
   width: 100%;
   box-sizing: border-box;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
 }
-
-.api-response::-webkit-scrollbar {
-  display: none;
-}
-
 .api-response code {
-  color: #333;
   word-break: break-word;
   white-space: pre-wrap;
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
 }
 
+/* ---------- Hero (welcome page) ---------- */
+.hero {
+  text-align: center;
+  padding: 1rem 0 0.5rem;
+}
+.hero__logo {
+  display: inline-flex;
+  padding: 0.9rem;
+  border-radius: 28px;
+  background: rgba(148, 163, 184, 0.07);
+  border: 1px solid var(--hc-border);
+  box-shadow: 0 0 60px -6px rgba(99, 102, 241, 0.55);
+  margin-bottom: 1.5rem;
+}
+.hero__title {
+  font-size: clamp(1.9rem, 5vw, 2.8rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+  margin-bottom: 0.75rem;
+  text-wrap: balance;
+}
+.hero__title span {
+  background: var(--hc-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero__lead {
+  color: var(--hc-muted);
+  max-width: 34rem;
+  margin: 0 auto 1.75rem;
+  font-size: 1.05rem;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.75rem;
+  margin-top: 1.75rem;
+  text-align: left;
+}
+@media (min-width: 576px) {
+  .feature-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+.feature {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.95rem;
+  border-radius: 14px;
+  background: rgba(148, 163, 184, 0.06);
+  border: 1px solid var(--hc-border);
+}
+.feature__icon {
+  color: var(--hc-accent);
+}
+.feature strong {
+  font-size: 0.92rem;
+}
+.feature span {
+  color: var(--hc-muted);
+  font-size: 0.82rem;
+}
+
+/* ---------- Icon tiles / lists ---------- */
+.icon-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 14px;
+  color: #67e8f9;
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(139, 92, 246, 0.16));
+  border: 1px solid rgba(99, 102, 241, 0.35);
+}
+.icon-tile--sm {
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 11px;
+}
+
+.list-group {
+  --bs-list-group-bg: transparent;
+  --bs-list-group-border-color: var(--hc-border);
+  --bs-list-group-action-hover-bg: rgba(148, 163, 184, 0.09);
+  --bs-list-group-action-active-bg: rgba(148, 163, 184, 0.14);
+  --bs-list-group-color: var(--hc-text);
+  --bs-list-group-action-color: var(--hc-text);
+  --bs-list-group-action-hover-color: #fff;
+}
+.list-group-item {
+  background: transparent;
+  padding: 0.9rem 1rem;
+}
+.list-group-flush > .list-group-item:first-child {
+  border-top: 0;
+}
+
+.list-group-item.device-row {
+  border-radius: 14px;
+  border: 0;
+  margin-bottom: 0.4rem;
+  transition: background 0.2s ease;
+}
+.device-row__chevron {
+  color: var(--hc-muted);
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+.device-row:hover .device-row__chevron {
+  color: var(--hc-accent);
+  transform: translateX(3px);
+}
+
+.type-pill {
+  display: inline-block;
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #c4b5fd;
+  background: rgba(139, 92, 246, 0.14);
+  border: 1px solid rgba(139, 92, 246, 0.3);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.1rem;
+  margin-bottom: 1rem;
+  background: none;
+  border: 0;
+  color: var(--hc-muted);
+  font-weight: 600;
+}
+.back-link:hover {
+  color: var(--hc-text);
+  transform: none;
+  box-shadow: none;
+}
+
+.section-label {
+  color: var(--hc-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  margin-bottom: 0.75rem;
+}
+
+.stat-list {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stat-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.06);
+  border: 1px solid var(--hc-border);
+  font-size: 0.9rem;
+}
+.stat-list li span:first-child {
+  color: var(--hc-muted);
+}
+
+/* ---------- Override controls ---------- */
+.override-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  width: 100%;
+  height: 3rem;
+}
+
+/* Replaces an override button while its direction animates. Inherits the old behaviour: the
+   fill is anchored to the side the animation travels away from, and the label sits in its own
+   full-width layer above it so it stays readable at any fill level. */
+.override-bar {
+  position: relative;
+  width: 100%;
+  height: 3rem;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.12);
+  border: 1px solid var(--hc-border-strong);
+}
+.override-bar__fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transition: width 200ms linear;
+}
+.override-bar__fill--override {
+  background: linear-gradient(90deg, #f43f5e, #fb7185);
+  box-shadow: 0 0 22px rgba(244, 63, 94, 0.55);
+}
+.override-bar__fill--motion {
+  background: linear-gradient(90deg, #10b981, #34d399);
+  box-shadow: 0 0 22px rgba(16, 185, 129, 0.5);
+}
+.override-bar__label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 0.75rem;
+  color: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.9), 0 0 1px rgba(0, 0, 0, 0.9);
+}
+
+/* ---------- Footer ---------- */
 footer {
   margin-top: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--hc-border);
+  color: var(--hc-muted);
+  font-size: 0.82rem;
 }
 
+/* ---------- Page entrance ---------- */
+.page-enter {
+  animation: page-enter 0.4s ease both;
+}
+@keyframes page-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-enter { animation: none; }
+  .btn, .device-row__chevron { transition: none; }
+}
+
+/* ---------- Layout (unchanged from before the redesign) ---------- */
 /* Mobile first responsive design */
 @media (max-width: 576px) {
   .container {
@@ -128,11 +644,11 @@ footer {
   }
 
   .card-body {
-    padding: 1rem;
+    padding: 1.15rem;
   }
 
   .btn {
-    font-size: 0.875rem;
+    font-size: 0.9rem;
     padding: 0.5rem 1rem;
   }
 
@@ -141,19 +657,18 @@ footer {
     padding: 0.75rem;
   }
 
-  .navbar-content {
-    padding: 0.5rem 1rem;
-  }
-
-  .navbar-brand {
-    font-size: 1.1rem;
+  /* Keep tappable controls at a comfortable touch-target size on phones,
+     regardless of what content/padding they'd otherwise size down to. */
+  .btn,
+  .navbar-toggler,
+  .list-group-item-action {
+    min-height: 44px;
   }
 }
 
-/* Ensure consistent width for all pages */
-.row {
-  width: 100%;
-}
+/* Page-level rows carry mx-0 (their columns use px-0) so content lines up with the container's
+   own padding; `width: 100%` here used to combine with Bootstrap's negative row margin and shift
+   everything left of centre. */
 
 [class*="col-"] {
   width: 100%;

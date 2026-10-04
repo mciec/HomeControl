@@ -1,6 +1,7 @@
-﻿Microsoft Visual Studio Solution File, Format Version 12.00
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 18
-VisualStudioVersion = 18.4.11605.240 stable
+VisualStudioVersion = 18.4.11605.240
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HomeControlBackEnd", "HomeControlBackEnd\HomeControlBackEnd.csproj", "{7B437128-673A-78A5-BD1D-61FCE9861506}"
 EndProject
@@ -19,6 +20,10 @@ EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorAnimationSimulator.Client", "DevicesAndSensors\RpiLedStripeDevice\BlazorAnimationSimulator\BlazorAnimationSimulator.Client\BlazorAnimationSimulator.Client.csproj", "{2DFB8BBB-B42C-38F6-F082-C868E3E7494E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "LedStripeChristmasTree", "DevicesAndSensors\RpiLedStripeDevice\LedStripeChristmasTree\LedStripeChristmasTree.csproj", "{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Shared", "Shared", "{4F52FD11-658E-A102-6CD3-7D7C16FFA15B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MqttManager", "Shared\MqttManager\MqttManager.csproj", "{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -110,6 +115,18 @@ Global
 		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Release|x64.Build.0 = Release|Any CPU
 		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Release|x86.ActiveCfg = Release|Any CPU
 		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45}.Release|x86.Build.0 = Release|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Debug|x64.Build.0 = Debug|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Debug|x86.Build.0 = Debug|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Release|x64.ActiveCfg = Release|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Release|x64.Build.0 = Release|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Release|x86.ActiveCfg = Release|Any CPU
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -121,6 +138,7 @@ Global
 		{77283881-FEC2-C5CC-20CA-57CEC4384E87} = {D431AE57-0BB6-A930-8DF2-4F176637EA21}
 		{2DFB8BBB-B42C-38F6-F082-C868E3E7494E} = {D431AE57-0BB6-A930-8DF2-4F176637EA21}
 		{E3A1C5F2-9D4B-4E7A-B183-2F6D8C0A1E45} = {D431AE57-0BB6-A930-8DF2-4F176637EA21}
+		{D5DEC743-59A9-4EA9-9E65-3B2D5B5D0DBC} = {4F52FD11-658E-A102-6CD3-7D7C16FFA15B}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {BB733B63-2A3F-48BF-8D3D-F11A87740A3F}

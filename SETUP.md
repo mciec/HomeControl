@@ -31,16 +31,16 @@ Edit `HomeControlBackEnd/appsettings.json` and add your credentials:
 }
 ```
 
-## Step 3: Trust the Development Certificate (Windows)
+## Step 3: Development Certificate
 
-```powershell
-dotnet dev-certs https --trust
-```
+On Linux `dotnet dev-certs https --trust` only trusts the cert for .NET/OpenSSL clients, not browsers.
+Use the mkcert certificate in `HomeControlBackEnd/certs` (git-ignored - copy it from the old machine
+or regenerate it) and trust its root CA in your browser, or run `dotnet dev-certs https` and accept the warning.
 
 ## Step 4: Run in Development Mode
 
-```powershell
-.\run-dev.ps1
+```bash
+./run-dev.sh
 ```
 
 The script will:
@@ -68,8 +68,8 @@ To add more, edit `HomeControlBackEnd/Features/Auth/AuthController.cs` and updat
 
 To build for production:
 
-```powershell
-.\run-prod.ps1
+```bash
+./run-prod.sh
 ```
 
 This will:
@@ -82,14 +82,14 @@ This will:
 
 ### Ports Already in Use
 The dev script tries to kill existing processes. If that fails:
-```powershell
-Get-Process -Name dotnet | Stop-Process -Force
-Get-Process -Name node | Stop-Process -Force
+```bash
+pkill -f 'dotnet run --launch-profile https'
+pkill -f 'HomeControlFrontEnd/node_modules/.bin/vite'
 ```
 
 ### Certificate Issues
 If you get certificate warnings:
-```powershell
+```bash
 dotnet dev-certs https --clean
 dotnet dev-certs https --trust
 ```
@@ -115,8 +115,8 @@ HomeControl/
 │   │   ├── services/
 │   │   ├── store/
 │   │   └── App.tsx
-├── run-dev.ps1                  # Development script
-├── run-prod.ps1                 # Production build script
+├── run-dev.sh                   # Development script
+├── run-prod.sh                  # Production build script
 └── README.md
 ```
 
