@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Production mode - builds the frontend, serves it from the backend's wwwroot,
 # publishes the backend and runs it with ASPNETCORE_ENVIRONMENT=Production.
+#
+# Connects to MQTT as homecontrol-backend-local (override via Mqtt__ClientId) so it doesn't
+# knock the deployed app (homecontrol-backend) off the broker - one connection per ClientId.
 set -euo pipefail
 . "$(dirname "$0")/scripts/lib/common.sh"
 
@@ -36,6 +39,7 @@ if [ -z "$GOOGLE_CLIENT_ID" ] || [ -z "$GOOGLE_CLIENT_SECRET" ]; then
 fi
 export Google__ClientId="$GOOGLE_CLIENT_ID" Google__ClientSecret="$GOOGLE_CLIENT_SECRET"
 export Mqtt__Host="$MQTT_HOST" Mqtt__User="$MQTT_USER" Mqtt__Password="$MQTT_PASSWORD"
+export Mqtt__ClientId="${Mqtt__ClientId:-homecontrol-backend-local}"
 export ASPNETCORE_ENVIRONMENT=Production
 
 echo

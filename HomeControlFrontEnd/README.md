@@ -1,73 +1,42 @@
-# React + TypeScript + Vite
+# HomeControlFrontEnd
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The web client of [HomeControl](../README.md): React 19, TypeScript 5.9, Vite 7, Redux Toolkit, Axios, SignalR, with Bootstrap 5 / react-bootstrap as the component base under a custom dark theme. The mobile app ([HomeControlMobile](../HomeControlMobile/README.md)) mirrors it screen for screen - keep the two in sync.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm ci
+npm run dev        # http://localhost:3000 (from the repo root, ../run-dev.sh also starts the backend)
+npm run build      # tsc -b && vite build -> dist/ (the Dockerfile copies this into the backend's wwwroot)
+npm run lint
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+The dev server proxies `/api`, `/signin-google` and `/hubs` (WebSocket) to the backend on `https://localhost:7000` (`vite.config.ts`), so the browser only ever talks to port 3000. Sign-in itself completes on the backend (`https://localhost:7000/signin-google`) and returns to `http://localhost:3000`.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Structure
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+src/
+├── App.tsx                      # shell: navbar, offcanvas menu, auth gate, view switch (no router)
+├── pages/                       # WelcomePage (landing/sign-in), AuthenticatedPage (home), DevicesPage (list + detail + SignalR)
+├── components/
+│   ├── Background.tsx           # animated backdrop (CSS only, honours prefers-reduced-motion)
+│   ├── icons/Icons.tsx          # hand-drawn SVG icon set + logo mark (no icon dependency)
+│   └── devices/                 # DeviceListItem, LedStripeWithSensorsDetail, OverrideControl, AnimationProgressBar
+├── services/                    # api.ts (Axios, cookie auth), devicesApi.ts (types + calls), deviceHub.ts (SignalR)
+└── store/                       # authSlice, devicesSlice, store
+```
+
+## Design
+
+Tokens are CSS variables in `src/index.css` (`--hc-*`, fed into Bootstrap's own `--bs-*`); component styling is in `src/App.css`. Dark theme via `data-bs-theme="dark"` on `<html>`, frosted-glass cards, cyan -> indigo -> violet accent, the same icon set as the mobile app. The favicon is `public/favicon.svg`.
+
+## Time handling (important)
+
+Animations carry absolute `startedAtUtc` / `endsAtUtc`, stamped by the **backend's** clock. Never compare them with `Date.now()` directly: every state the server sends includes `serverTimeUtc`, and `devicesSlice` stores `serverClockOffsetMs = serverTimeUtc - Date.now()`; code that counts down uses `Date.now() + serverClockOffsetMs` (`AnimationProgressBar`, the local-expiry fallback in `DevicesPage`). A skewed browser clock therefore cannot shift the progress bar.
+
+## Behaviour notes
+
+- **Live updates:** `DevicesPage` keeps one SignalR connection for the page's lifetime with indefinite back-off reconnect, and re-fetches the detail after a reconnect to resync.
+- **Override button -> progress bar:** shows while the device reports an animation in that direction; a `Stopped` push or the local expiry fallback restores the button.
+- No `any`; keep strict types. Do not add npm packages without a reason.

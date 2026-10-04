@@ -1,67 +1,75 @@
-# HomeControl - .NET Backend with React Frontend
+# HomeControl
 
-A full-stack application demonstrating a .NET 10 backend with vertical slice architecture and a React frontend with Redux state management, featuring Google OAuth authentication.
+A home-automation system: a **.NET 10 backend**, a **React web app**, a **React Native mobile app** and the **Raspberry Pi firmware** that drives an LED strip. Sign in with Google, see what a device is doing in real time and override it with one tap.
 
-## Project Structure
+```
+ ┌────────────┐  HTTPS + SignalR   ┌──────────────────┐   MQTT (HiveMQ Cloud)   ┌──────────────────┐
+ │ Web (React)│◄──────────────────►│                  │◄───────────────────────►│ Raspberry Pi     │
+ ├────────────┤   cookie session   │ HomeControlBackEnd│  entrance/override  ──► │ LedStripeWith-   │
+ │ Mobile (RN)│◄──────────────────►│  (.NET 10)       │  ◄── entrance/motion    │ Sensors + LEDs   │
+ └────────────┘                    └──────────────────┘                          └──────────────────┘
+```
+
+- **Override:** the UI `POST`s `/api/devices/{id}/override`; the backend publishes `LEFT`/`RIGHT` to `entrance/override`.
+- **Events:** the device publishes JSON `Started`/`Stopped` animation events (override *or* motion-triggered) on `entrance/motion`. The backend stamps each animation with **its own clock** (so device/host clock skew can't shift anything), keeps the state in memory and pushes it to every client over SignalR (`/hubs/devices`). Clients count the progress bar down against **server time** (`serverTimeUtc`).
+
+## Repository layout
 
 ```
 HomeControl/
-├── HomeControlBackEnd/          # .NET 8 ASP.NET Core API
-│   ├── Features/                # Vertical slice architecture
-│   │   ├── Auth/               # Authentication feature
-│   │   └── Sample/             # Sample API endpoints
-│   ├── Properties/
-│   ├── appsettings.json
-│   └── Program.cs
-├── HomeControlFrontEnd/         # React + Vite frontend
-│   ├── src/
-│   │   ├── pages/              # Page components
-│   │   ├── services/           # API services
-│   │   ├── store/              # Redux store
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── vite.config.ts
-│   └── package.json
-├── run-dev.sh                   # Development mode script
-├── run-prod.sh                  # Production build + run script
-├── deploy-azure-appservice.sh   # Azure App Service deployment (current)
-├── scripts/setup-ubuntu.sh      # Ubuntu/WSL toolchain setup
-└── README.md
+├── HomeControlBackEnd/            # .NET 10 ASP.NET Core API, vertical slices under Features/
+│   └── Features/
+│       ├── Auth/                  # Google OAuth (cookie session), allow-listed emails
+│       ├── Devices/               # device registry, MQTT listener, SignalR hub, override endpoint
+│       ├── Home/  Sample/         # root endpoint, public/protected demo endpoints
+├── HomeControlFrontEnd/           # React 19 + TypeScript + Vite 7 + Redux Toolkit (web)
+├── HomeControlMobile/             # React Native 0.87 (bare CLI) - mirrors the web app, see its README
+├── DevicesAndSensors/             # Raspberry Pi firmware (.NET) + animations + Blazor simulator
+├── Shared/MqttManager/            # MQTT client with retry/recovery, used by backend and device
+├── scripts/                       # setup-ubuntu.sh + lib/common.sh (shared helpers)
+├── docker/dev/                    # dev-container image + compose
+├── Dockerfile  docker-compose.yml # production image (frontend served from the backend's wwwroot)
+├── run-dev.sh  run-prod.sh        # run locally
+├── deploy-azure-appservice.sh     # deploy to Azure App Service (current target)
+├── deploy-azure-aca.sh  deploy-azure.sh   # alternatives: Container Apps / Container Instances
+├── build-mobile-release.sh        # Android release APK
+├── test-docker.sh  test-backend-startup.sh
+└── AZURE_DEPLOYMENT.md  SETUP.md  README.md
 ```
 
-## Prerequisites
-
-- .NET 10 SDK
-- Node.js 18+ and npm
-- Ubuntu (bare metal, VM, WSL2 or a container) with bash - `./scripts/setup-ubuntu.sh` installs everything
-- Google OAuth credentials (for authentication)
-
-## Setup Instructions
-
-### 1. Google OAuth Configuration
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a new project
-3. Enable Google+ API
-4. Create OAuth 2.0 credentials (Web application)
-5. Add authorized redirect URIs:
-   - Development: `https://localhost:3000/signin-google` and `https://localhost:7000/signin-google`
-   - Production: `https://localhost:7000/signin-google`
-6. Copy your Client ID and Client Secret
-
-### 2. Configure Backend Secrets
-
-Secrets are stored using the [.NET User Secrets](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) manager and are **never** committed to source control. Do not add them to `appsettings.json`.
+## Quick start (Ubuntu, WSL2 or a container)
 
 ```bash
+./scripts/setup-ubuntu.sh            # .NET 10, Node 22, git, ... (idempotent)
+#   INSTALL_AZ_CLI=1   Azure CLI (deploy scripts)      INSTALL_ANDROID=1  JDK + Android SDK (mobile build)
+#   INSTALL_DOCKER=1   Docker Engine                   INSTALL_BROWSER_DEPS=1  headless Chromium libs
+
 cd HomeControlBackEnd
-dotnet user-secrets set "Google:ClientId" "YOUR_GOOGLE_CLIENT_ID"
-dotnet user-secrets set "Google:ClientSecret" "YOUR_GOOGLE_CLIENT_SECRET"
+dotnet user-secrets set "Google:ClientId"     "<id>"
+dotnet user-secrets set "Google:ClientSecret" "<secret>"
+dotnet user-secrets set "Mqtt:Host"           "<hivemq host>"
+dotnet user-secrets set "Mqtt:User"           "<user>"
+dotnet user-secrets set "Mqtt:Password"       "<password>"
+cd ..
+
+(cd HomeControlFrontEnd && npm ci)
+./run-dev.sh                         # backend + frontend with hot reload
 ```
 
-User secrets are loaded automatically when `ASPNETCORE_ENVIRONMENT=Development` (which `run-dev.sh` sets). For production and Docker runs, secrets are injected as environment variables by the respective scripts (`run-prod.sh`, `test-docker.sh`, `deploy-azure*.sh`) — they all read from the user secrets store automatically.
+Open **http://localhost:3000**. See [SETUP.md](SETUP.md) for the step-by-step version including Google OAuth setup.
 
-### Configuration reference
+### Scripts
+
+| Script | What it does |
+|---|---|
+| `./run-dev.sh` | Backend (`https://localhost:7000`, `http://localhost:5000`) + Vite (`http://localhost:3000`, proxies `/api`, `/signin-google`, `/hubs`). Inside Docker it binds `0.0.0.0`. Uses its own MQTT ClientId (see below). |
+| `./run-prod.sh` | Builds the frontend into the backend's `wwwroot`, publishes and runs in `Production`, passing user secrets as environment variables. |
+| `./test-docker.sh` | Builds the production image and runs it on `:8080`/`:8081`. |
+| `./test-backend-startup.sh [s]` | Boots the backend for a few seconds and reports whether it stayed up. |
+| `./deploy-azure-appservice.sh` | Builds the image remotely in ACR and deploys to App Service - see [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md). |
+| `./build-mobile-release.sh [--aab]` | Type-checks, lints, tests and builds the Android release APK. |
+
+## Configuration reference
 
 The backend reads its settings from the standard ASP.NET Core layers, **later ones overriding earlier**:
 
@@ -80,176 +88,64 @@ The backend reads its settings from the standard ASP.NET Core layers, **later on
 
 Missing required settings stop the app at startup with a message naming the key and where to set it.
 
-**Two different MQTT sections, on purpose:** the *backend* (this repo's `HomeControlBackEnd`) uses the `Mqtt` section; the Raspberry Pi *device* apps under `DevicesAndSensors/` use `MqttConfig`. They hold the same broker credentials but are separate programs with separate configuration - do not put `MqttConfig:*` into the backend's secrets.
+**Two different MQTT sections, on purpose:** the *backend* uses the `Mqtt` section; the Raspberry Pi *device* apps under `DevicesAndSensors/` use `MqttConfig`. They hold the same broker credentials but are separate programs - do not put `MqttConfig:*` into the backend's secrets.
 
-**MQTT `ClientId` must be unique per running instance.** A broker allows one connection per ClientId, so two backends sharing `homecontrol-backend` (e.g. a local run while Azure is up) keep kicking each other off. For a local run alongside the deployed app, override it: `dotnet user-secrets set "Mqtt:ClientId" "homecontrol-backend-dev" --project HomeControlBackEnd`.
+**MQTT `ClientId` must be unique per running instance.** A broker allows one connection per ClientId, so two backends sharing one keep kicking each other off (the symptom is `MQTT client disconnected` / reconnect loops in both). Azure uses `homecontrol-backend` (from `appsettings.json`); `run-dev.sh` defaults to `homecontrol-backend-dev`, `run-prod.sh` to `homecontrol-backend-local`, and Docker runs to `homecontrol-backend-docker`. Override any of them with the `Mqtt__ClientId` environment variable.
 
-#### MQTT broker credentials (Devices feature)
+## Google OAuth
 
-The Devices feature connects to the same HiveMQ Cloud broker used by the physical
-entrance LED strip device. Non-secret connection settings (`ClientId`, `Port`, `UseTLS`)
-live in `appsettings.json` under `Mqtt`; the broker host and credentials are secrets:
+Create an OAuth 2.0 *Web application* client in the [Google Cloud Console](https://console.cloud.google.com/) and register these **authorized redirect URIs** (the callback is always served by the backend, even when you browse the Vite dev server):
 
-```bash
-cd HomeControlBackEnd
-dotnet user-secrets set "Mqtt:Host" "YOUR_HIVEMQ_CLOUD_HOST"
-dotnet user-secrets set "Mqtt:User" "YOUR_MQTT_USERNAME"
-dotnet user-secrets set "Mqtt:Password" "YOUR_MQTT_PASSWORD"
-```
+- `https://localhost:7000/signin-google` - local dev and `run-prod.sh`
+- `https://homecontrol-app.azurewebsites.net/signin-google` - Azure
+- `http://localhost:8080/signin-google` and `https://localhost:8081/signin-google` - only if you use `test-docker.sh`
 
-Use the same broker/credentials as configured for the RPi device project
-(`DevicesAndSensors/RpiLedStripeDevice/LedStripeWithSensors/appSettings.json`'s
-`MqttConfig` section) if you want the backend to see the real device's traffic locally.
+Only the e-mail addresses in `AllowedEmails` (`HomeControlBackEnd/Features/Auth/AuthController.cs`) can sign in; everyone else is signed out again and redirected to `/?error=unauthorized`. In development a successful login returns you to `http://localhost:3000`.
 
-### 3. Install Dependencies
+## HTTP API
 
-```bash
-# Backend dependencies are managed by .NET
-# Frontend dependencies
-cd HomeControlFrontEnd
-npm install
-```
+| Method & path | Auth | Purpose |
+|---|---|---|
+| `GET /api/auth/login` | - | Start Google sign-in (`?returnUrl=` accepts same-site paths and `homecontrol://...` for the mobile app) |
+| `GET /api/auth/status` | - | `{ isAuthenticated, email }` |
+| `GET /api/auth/user` | yes | Current user |
+| `POST /api/auth/logout` | yes | Sign out, clear cookies |
+| `GET /api/sample/public`, `/api/sample/protected` | - / yes | Demo endpoints |
+| `GET /api/devices` | yes | Device list |
+| `GET /api/devices/{id}` | yes | Device detail incl. `state` (`currentAnimation`, `serverTimeUtc`, last override timestamps) |
+| `POST /api/devices/{id}/override` | yes | Body `{ "direction": "Left" \| "Right" }` -> `202`, or `503` if the broker is down |
+| `WS/SSE/LP /hubs/devices` | yes | SignalR; server pushes `DeviceStateChanged { deviceId, type, state }` |
 
-## Running the Application
+In development `GET /openapi/v1.json` serves the OpenAPI document.
 
-### Development Mode
+## Clients
 
-```bash
-./run-dev.sh
-```
+- **Web** ([HomeControlFrontEnd](HomeControlFrontEnd/README.md)): dark, glassy design with a custom icon set and animated background; sign-in landing page, home dashboard, device list and detail with live override controls.
+- **Mobile** ([HomeControlMobile](HomeControlMobile/README.md)): the same design and behaviour in React Native; Google sign-in runs in an in-app WebView because the backend uses a cookie session.
+- The two clients are deliberately kept feature-equivalent: a change to one normally gets ported to the other.
 
-This script will:
-- Kill any existing instances of the backend and frontend
-- Start the .NET backend on `https://localhost:7000`
-- Start the React development server on `https://localhost:3000`
-- Enable hot reload for both applications
-- Proxy API requests from frontend to backend
+## Docker & deployment
 
-**Access the application:**
-- Frontend: https://localhost:3000
-- Backend API: https://localhost:7000
-- Swagger UI: https://localhost:7000/swagger
+`Dockerfile` builds the frontend, publishes the backend and ships both in one image; `docker-compose.yml` and `test-docker.sh` run it locally. `deploy-azure-appservice.sh` deploys it to Azure (App Service, `https://homecontrol-app.azurewebsites.net`). `docker/dev/` is the development container (`INSTALL_ANDROID=1` adds the Android toolchain). Details: [AZURE_DEPLOYMENT.md](AZURE_DEPLOYMENT.md).
 
-### Production Mode
+## Development notes
 
-```bash
-./run-prod.sh
-```
-
-This script will:
-- Build the React frontend
-- Copy the built files to the backend's `wwwroot` folder
-- Build and publish the .NET backend
-- Start it with `ASPNETCORE_ENVIRONMENT=Production` and the user secrets passed as environment variables
-
-**To run the published application again later:**
-
-```bash
-cd HomeControlBackEnd/bin/Release/publish
-dotnet HomeControlBackEnd.dll
-```
-
-Access the application at: https://localhost:7000
-
-## Features
-
-### Backend (.NET 10)
-
-- **Vertical Slice Architecture**: Organized by features (Auth, Sample)
-- **Google OAuth Authentication**: Only allows specific email addresses
-  - `michal.cieciora@gmail.com`
-  - `marczibaa@gmail.com`
-- **Cookie-based Sessions**: Secure, HttpOnly cookies with automatic cleanup on logout
-- **CORS Support**: Configured for development and production
-- **Sample Endpoints**:
-  - `GET /api/sample/public` - Public endpoint (no authentication required)
-  - `GET /api/sample/protected` - Protected endpoint (authentication required)
-  - `GET /api/auth/status` - Check authentication status
-  - `GET /api/auth/user` - Get current user info
-  - `GET /api/auth/login` - Initiate Google login
-  - `POST /api/auth/logout` - Logout and clear cookies
-
-### Frontend (React + Vite)
-
-- **Mobile-First Design**: Responsive layout with hamburger menu
-- **React Bootstrap**: Professional UI components
-- **Redux State Management**: Centralized authentication state
-- **Vite Development Server**: Fast hot module replacement
-- **API Proxy**: Development server proxies API requests to backend
-- **Pages**:
-  - Welcome Page: For unauthenticated users with public API demo
-  - Authenticated Page: For logged-in users with protected API demo
-
-## Authentication Flow
-
-1. User clicks "Login with Google" button
-2. Frontend redirects to backend login endpoint
-3. Backend initiates Google OAuth flow
-4. User authenticates with Google
-5. Backend validates email against allowed list
-6. Session cookie is set
-7. User is redirected to frontend
-8. Frontend checks authentication status and updates Redux state
-
-## Logout Flow
-
-1. User clicks "Logout" button
-2. Frontend calls logout endpoint
-3. Backend clears all cookies
-4. Frontend updates Redux state
-5. User is redirected to welcome page
-
-## Development Notes
-
-### Adding New Features
-
-To add a new feature following vertical slice architecture:
-
-1. Create a new folder under `HomeControlBackEnd/Features/YourFeature`
-2. Add a controller: `YourFeatureController.cs`
-3. Add any services or models needed for that feature
-4. Register services in `Program.cs` if needed
-
-### Frontend State Management
-
-Redux store is configured in `src/store/store.ts`. To add new slices:
-
-1. Create a new slice file: `src/store/yourSlice.ts`
-2. Add it to the store configuration
-3. Use `useSelector` and `useDispatch` hooks in components
-
-### API Integration
-
-API calls are centralized in `src/services/api.ts`. Add new endpoints there and use them in components.
+- **Backend:** add a folder under `HomeControlBackEnd/Features/<Name>/` with its controller, models and services; register services in `Program.cs`.
+- **Web state:** Redux Toolkit slices in `HomeControlFrontEnd/src/store/`; HTTP in `src/services/api.ts` and `devicesApi.ts`; SignalR in `deviceHub.ts`.
+- **Time:** never compare device/browser clocks against animation timestamps; use `serverTimeUtc` (`serverClockOffsetMs` in `devicesSlice`).
+- **Solution file:** `HomeControl.sln` covers the .NET projects (and the web project for Visual Studio); the mobile app is a plain npm project.
 
 ## Troubleshooting
 
-### Port Already in Use
+- **Port in use:** `run-dev.sh` stops its own previous instances; otherwise `ps -eo pid,args | grep -E 'dotnet run|vite'` and kill them, or change the ports in `launchSettings.json` / `vite.config.ts`.
+- **HTTPS certificate warnings:** the dev backend uses a self-signed certificate. For a browser-trusted one use mkcert (see the mobile README) and set `Kestrel:Certificates:Default:Path/Password` as user secrets.
+- **Progress bar starts late / animation times look off:** a skewed clock. The backend no longer trusts the device's clock, but check `date -u` against reality anyway - Docker/WSL2 clocks drift after sleep (`wsl --shutdown` / restart Docker Desktop). The log line `MQTT Started ... lag=` shows the device-vs-backend skew.
+- **Constant `MQTT client disconnected` loops:** two instances share an MQTT ClientId (see above).
+- **Google login errors:** `dotnet user-secrets list --project HomeControlBackEnd`, check the redirect URIs above match exactly, and that the account is allow-listed.
 
-If ports 3000 or 7000 are already in use:
-- The dev script will attempt to kill existing processes
-- Manually kill processes: `Get-Process -Name dotnet | Stop-Process -Force`
-- Or change ports in `launchSettings.json` and `vite.config.ts`
+## Security
 
-### HTTPS Certificate Issues
-
-The development environment uses self-signed certificates. You may need to:
-- Trust the .NET development certificate: `dotnet dev-certs https --trust`
-- Accept browser warnings about untrusted certificates
-
-### Google OAuth Errors
-
-- Verify secrets are set: `dotnet user-secrets list --project HomeControlBackEnd`
-- Check that redirect URIs match exactly in Google Console
-- Ensure allowed email addresses are configured in `AuthController.cs`
-
-## Security Considerations
-
-- Cookies are HttpOnly and Secure
-- CORS is restricted to localhost in development
-- Google OAuth validates email addresses server-side
-- Session tokens are validated on each request
-- All sensitive data is cleared on logout
+Cookies are HttpOnly/Secure/SameSite=Lax; CORS is restricted to localhost origins in development and closed in production; `returnUrl` is validated against an allow-list (no open redirect); secrets live only in user secrets / environment variables, never in the repository. The Android release is signed with the debug keystore (stock React Native template) - not suitable for the Play Store.
 
 ## License
 

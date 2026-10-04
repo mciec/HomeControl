@@ -1,0 +1,23 @@
+# Normalise line endings: the repo stores LF. (This repo was started on Windows; without this,
+# scripts checked out with CRLF fail on Linux with "bad interpreter" / "$'\r': command not found".)
+* text=auto
+
+# Always LF - executed by bash / Docker / Gradle on Linux
+*.sh      text eol=lf
+gradlew   text eol=lf
+Dockerfile text eol=lf
+*.yml     text eol=lf
+*.yaml    text eol=lf
+
+# Windows-only scripts keep CRLF
+*.ps1     text eol=crlf
+*.bat     text eol=crlf
+*.cmd     text eol=crlf
+
+# Binary
+*.png  binary
+*.jpg  binary
+*.ico  binary
+*.jar  binary
+*.keystore binary
+*.pfx  binary

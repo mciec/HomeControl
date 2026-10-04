@@ -2,11 +2,16 @@
 # Development mode - runs backend (https://localhost:7000) and frontend
 # (http://localhost:3000) with hot reload. Stops any previous instances first.
 # Ctrl+C stops both.
+#
+# The backend connects to MQTT with its own ClientId (default homecontrol-backend-dev,
+# override via Mqtt__ClientId): a broker allows one connection per ClientId, so reusing the
+# deployed app's would knock it off the broker every time this runs.
 set -euo pipefail
 . "$(dirname "$0")/scripts/lib/common.sh"
 
 # Inside a container, published ports only reach processes bound to 0.0.0.0, so use the
 # https-lan launch profile and make Vite listen on all interfaces.
+export Mqtt__ClientId="${Mqtt__ClientId:-homecontrol-backend-dev}"
 BACKEND_PROFILE=https; VITE_ARGS=()
 if [ -f /.dockerenv ]; then BACKEND_PROFILE=https-lan; VITE_ARGS=(-- --host 0.0.0.0); fi
 

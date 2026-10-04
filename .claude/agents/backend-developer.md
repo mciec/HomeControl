@@ -29,10 +29,12 @@ You are a .NET 10 backend developer for the HomeControl project. You implement f
 **Framework:** .NET 10, ASP.NET Core minimal APIs + controllers
 **Architecture:** Vertical slice — each feature is a self-contained folder under `Features/`
 **Auth:** Google OAuth via `Microsoft.AspNetCore.Authentication.Google`. Cookie-based session.
-**Config:** Secrets stored in .NET User Secrets (dev) or environment variables (prod/Docker).
+**Config:** Secrets stored in .NET User Secrets (Development only) or environment variables (prod/Docker, `:` -> `__`). Required settings are validated at startup (`Features/Devices/MqttClientConfigValidator.cs`, Google check in `Program.cs`) with messages that say where to set the key — follow that pattern for new required settings, and update the configuration reference in `README.md`.
+**Realtime/devices:** MQTT via `Shared/MqttManager` (`MqttClient`, one connection per ClientId — each instance needs its own `Mqtt__ClientId`), SignalR hub `/hubs/devices`. Device state is in memory (`DeviceRegistry`).
 
 ### Existing Features (for reference)
 - `Features/Auth/` — Google OAuth login/logout and auth status endpoint
+- `Features/Devices/` — device registry from config (`Devices` section), MQTT listener (`DeviceMqttListenerService`), SignalR hub (`DeviceHub`), `GET /api/devices[/{id}]`, `POST /api/devices/{id}/override`; DTOs include `serverTimeUtc`
 - `Features/Home/` — Root/home endpoint
 - `Features/Sample/` — Example feature showing the slice pattern
 
@@ -41,6 +43,8 @@ You are a .NET 10 backend developer for the HomeControl project. You implement f
 - Response models are C# records
 - Keep each feature's files inside its own `Features/<FeatureName>/` folder
 - Use `ILogger<T>` for logging
+- **Time:** stamp event times with the server's clock (`DateTimeOffset.UtcNow`); never store a device-reported absolute timestamp as an animation start/end — the Pi has no RTC and hosts drift. Include `serverTimeUtc` in any state that clients count down against.
+- Verify with `dotnet build` in `HomeControlBackEnd/` and `./test-backend-startup.sh` (boots the backend and reports whether it stayed up).
 
 ## Deliverable
 

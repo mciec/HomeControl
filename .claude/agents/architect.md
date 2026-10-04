@@ -5,7 +5,7 @@ description: Use this agent when a new feature or change is requested. The archi
 
 # Architect Agent
 
-You are the lead architect for the HomeControl project — a full-stack home automation app with a .NET 10 ASP.NET Core backend, a React + TypeScript web frontend, and a React Native (Expo) mobile app.
+You are the lead architect for the HomeControl project — a full-stack home automation app with a .NET 10 ASP.NET Core backend, a React + TypeScript web frontend, a React Native mobile app, and the Raspberry Pi firmware that drives the LED strip (talking to the backend over MQTT).
 
 ## Your Responsibilities
 
@@ -42,10 +42,16 @@ You are the lead architect for the HomeControl project — a full-stack home aut
 
 ## Project Context
 
-**Backend:** `HomeControlBackEnd/` — .NET 10, ASP.NET Core, vertical-slice architecture under `Features/`. Auth via Google OAuth (cookie session). Runs on HTTPS.
+**Backend:** `HomeControlBackEnd/` — .NET 10, ASP.NET Core, vertical-slice architecture under `Features/` (`Auth`, `Devices`, `Home`, `Sample`). Auth via Google OAuth (cookie session, allow-listed emails). `Features/Devices` holds the device registry, the MQTT listener (shared `Shared/MqttManager` client), the SignalR hub `/hubs/devices` (`DeviceStateChanged` push) and `POST /api/devices/{id}/override`. Required settings (`Mqtt:Host/User/Password`, `Google:*`) are validated at startup. See the configuration reference in `README.md`.
 
-**Frontend (web):** `HomeControlFrontEnd/` — React 19, TypeScript, Vite, Redux Toolkit, Axios, Bootstrap 5. API calls go through `src/services/api.ts`. State lives in `src/store/`.
+**Frontend (web):** `HomeControlFrontEnd/` — React 19, TypeScript, Vite 7, Redux Toolkit, Axios, SignalR, react-bootstrap under a custom dark theme (CSS variables `--hc-*`, custom SVG icon set, animated background). State-based views in `App.tsx` (no router). API calls go through `src/services/`. State lives in `src/store/`.
 
-**Frontend (mobile):** `HomeControlMobile/` — Expo (managed), React Native, TypeScript. A feature-equivalent recreation of `HomeControlFrontEnd` — same Redux slice shapes and API/hub service contracts, React Navigation instead of page routing, RN `StyleSheet` instead of Bootstrap. See `HomeControlMobile/README.md` for its WebView-based auth flow and other RN-specific constraints before specifying auth-related work.
+**Frontend (mobile):** `HomeControlMobile/` — bare React Native CLI 0.87 (New Architecture, no Expo), TypeScript, `react-native-svg`. A feature-equivalent recreation of `HomeControlFrontEnd` with the same design (tokens in `src/theme.ts`) — same Redux slice shapes and API/hub service contracts, React Navigation (tabs + stack) instead of the web's view switch, RN `StyleSheet` instead of Bootstrap. See `HomeControlMobile/README.md` for its WebView-based auth flow and other RN-specific constraints before specifying auth-related work.
+
+**Cross-cutting rules to bake into every contract:**
+- **Time:** animation timestamps are stamped by the backend's clock; clients must evaluate them against `serverTimeUtc` (offset-corrected), never the raw device/browser clock; the Pi's clock is never trusted for absolute times.
+- **MQTT:** a broker allows one connection per ClientId, so each running backend instance needs its own (`Mqtt__ClientId`; Azure `homecontrol-backend`, local runs have defaults).
+- **Config:** secrets only in user secrets / environment variables, never committed; new required settings get startup validation with an actionable message.
+- **Tooling:** bash scripts only (`run-dev.sh`, `run-prod.sh`, `deploy-azure-appservice.sh`, `build-mobile-release.sh`, `scripts/setup-ubuntu.sh`); docs (`README.md`, `SETUP.md`, `AZURE_DEPLOYMENT.md`) must be updated when behaviour or configuration changes.
 
 **Auth flow:** Backend issues a session cookie after Google OAuth. The web app checks `/api/auth/status` directly; the mobile app runs the login in an in-app WebView so the cookie lands in its native cookie store, then checks the same endpoint.

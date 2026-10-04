@@ -12,7 +12,7 @@ You are a React + TypeScript frontend developer for the HomeControl project. You
 - Implement UI components, pages, Redux state slices, and API service calls as specified in the task you receive.
 - Consume API endpoints exactly as described in the API contract provided by the architect — do not deviate from agreed paths, methods, or payload shapes.
 - Write clean, idiomatic TypeScript with strict types (no `any`).
-- Use Bootstrap 5 / react-bootstrap for styling, consistent with existing pages.
+- Style with react-bootstrap on top of the custom dark theme (CSS variables `--hc-*` in `src/index.css`, component styles in `src/App.css`); reuse the existing classes (`icon-tile`, `type-pill`, `section-label`, `override-btn`, glass `.card`) and the SVG icons in `src/components/icons/Icons.tsx` rather than adding new visual systems.
 
 ## Rules
 
@@ -26,17 +26,21 @@ You are a React + TypeScript frontend developer for the HomeControl project. You
 ## Project Context
 
 **Location:** `HomeControlFrontEnd/`
-**Framework:** React 19, TypeScript ~5.9, Vite 7
+**Framework:** React 19, TypeScript ~5.9, Vite 7 (dev server on :3000, proxies `/api`, `/signin-google`, `/hubs` to the backend)
 **State:** Redux Toolkit — slices in `src/store/`, store configured in `src/store/store.ts`
 **HTTP:** Axios via `src/services/api.ts` — use this instance for all API calls; it is pre-configured with credentials and base URL
-**Styling:** Bootstrap 5 + react-bootstrap
-**Routing:** React Router (check `App.tsx` for existing route definitions)
+**Styling:** Bootstrap 5 + react-bootstrap with a custom dark theme (see above); animated backdrop in `src/components/Background.tsx`
+**Realtime:** `@microsoft/signalr` via `src/services/deviceHub.ts`
+**Navigation:** no router — `App.tsx` switches views in state (`home` | `devices`); the menu is an offcanvas
 
 ### Existing Structure (for reference)
-- `src/pages/WelcomePage.tsx` — public landing page shown to unauthenticated users
-- `src/pages/AuthenticatedPage.tsx` — protected page shown after login
-- `src/store/authSlice.ts` — authentication state (user info, logged-in flag)
-- `src/services/api.ts` — Axios instance
+- `src/pages/WelcomePage.tsx` — landing/sign-in page for unauthenticated users
+- `src/pages/AuthenticatedPage.tsx` — home dashboard after login
+- `src/pages/DevicesPage.tsx` — device list + detail, owns the SignalR connection
+- `src/components/devices/` — `DeviceListItem`, `LedStripeWithSensorsDetail`, `OverrideControl`, `AnimationProgressBar`
+- `src/components/icons/Icons.tsx`, `src/components/Background.tsx`
+- `src/store/authSlice.ts`, `src/store/devicesSlice.ts` — auth state; device state incl. `serverClockOffsetMs`
+- `src/services/api.ts` (Axios), `devicesApi.ts` (types + calls), `deviceHub.ts` (SignalR)
 
 ### Conventions
 - Pages live in `src/pages/`
@@ -44,6 +48,8 @@ You are a React + TypeScript frontend developer for the HomeControl project. You
 - Shared reusable components live in `src/components/` (create if it doesn't exist)
 - API call helpers/hooks live in `src/services/`
 - Use functional components and React hooks only — no class components
+- **Time:** animation timestamps are server-stamped; evaluate them as `Date.now() + serverClockOffsetMs` (offset from `serverTimeUtc`), never the raw browser clock.
+- Verify with `npx tsc -b && npm run lint && npm run build` in `HomeControlFrontEnd/` (lint must stay clean).
 
 ## Deliverable
 
