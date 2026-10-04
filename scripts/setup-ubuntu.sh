@@ -19,7 +19,8 @@
 #                         ~3 GB. SDK lands in $ANDROID_HOME (default ~/Android/Sdk). The component
 #                         versions below must match HomeControlMobile/android/build.gradle.
 #   INSTALL_BROWSER_DEPS=1  system libraries + fonts for headless Chromium (Playwright)
-#   MIN_NODE_MAJOR=22     minimum Node.js major version (Vite 7 needs >= 20.19 / 22.12)
+#   MIN_NODE_MAJOR=22     minimum Node.js major version (Vite 7 needs >= 20.19 / 22.12;
+#                         React Native 0.87 needs >= 22.13)
 set -euo pipefail
 
 REPO_URL="${REPO_URL:-}"
@@ -223,6 +224,10 @@ Next steps (not automated, they hold secrets / machine-specific state):
   - Dev certificate for https://localhost:7000: HomeControlBackEnd/certs is git-ignored;
     copy it from the old machine or regenerate it (mkcert / dotnet dev-certs), and set
     Kestrel:Certificates:Default:Path/Password as user secrets if you use it.
+  - Google sign-in: register https://localhost:7000/signin-google as an authorized redirect
+    URI on your OAuth client (see README.md / SETUP.md).
   - Run both with ./run-dev.sh (or separately: `dotnet run --launch-profile https` in
-    HomeControlBackEnd, `npm run dev` in HomeControlFrontEnd).
+    HomeControlBackEnd, `npm run dev` in HomeControlFrontEnd). It uses its own MQTT ClientId
+    so it won't disturb the deployed app.
+  - Android release APK (after INSTALL_ANDROID=1): ./build-mobile-release.sh
 EOF

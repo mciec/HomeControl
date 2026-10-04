@@ -5,6 +5,8 @@
 set -uo pipefail
 . "$(dirname "$0")/scripts/lib/common.sh"
 
+# Own MQTT ClientId so this doesn't knock a running deployment off the broker.
+export Mqtt__ClientId="${Mqtt__ClientId:-homecontrol-backend-dev}"
 SECONDS_TO_RUN="${1:-15}"
 cd "$BACKEND_PATH"
 echo "=== BACKEND OUTPUT (${SECONDS_TO_RUN}s) ==="

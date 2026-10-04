@@ -13,6 +13,8 @@ This app was migrated off Expo (managed workflow) to a bare React Native CLI pro
 | `DevicesPage` (list + detail toggle) | `DevicesListScreen` + `DeviceDetailScreen` (Devices tab, stacked) |
 | `LedStripeWithSensorsDetail` / `OverrideControl` / `AnimationProgressBar` | Same names, under `src/components/devices/`, RN `View`/`StyleSheet` + `react-native-svg` instead of react-bootstrap |
 
+Redux slices (`authSlice`, `devicesSlice`) and the API/hub service layer (`devicesApi.ts`, `deviceHub.ts`) are ported close to verbatim - the data contracts are shared, only the presentation layer differs.
+
 ## Look & feel
 
 The app mirrors the web frontend's design: a dark navy theme with a cyan → indigo → violet accent, frosted-style cards, an animated background (drifting colour orbs plus a colour-shifting "LED strip" line, disabled under the OS *reduce motion* setting) and the same custom icon set. Tokens live in `src/theme.ts` (the web's `--hc-*` variables); building blocks are `Background`, `Card`, `Button`, `GradientFill` and `ui.tsx` (`IconTile`, `TypePill`, `SectionLabel`, `ErrorBox`) under `src/components/`, icons in `src/components/icons/Icons.tsx`. Everything is drawn with `react-native-svg` - there is no icon font or gradient library.
@@ -28,8 +30,6 @@ React Native **0.87.1** (New Architecture; Android edge-to-edge is on, per the 0
 - To upgrade React Native itself, apply the matching diff from [rn-diff-purge](https://github.com/react-native-community/rn-diff-purge) (`diffs/<from>..<to>.diff`) to `android/`, `ios/`, `package.json` and `tsconfig.json`.
 
 iOS: run `bundle exec pod install` in `ios/` after pulling - `react-native-svg` was added.
-
-Redux slices (`authSlice`, `devicesSlice`) and the API/hub service layer (`devicesApi.ts`, `deviceHub.ts`) are ported close to verbatim - the data contracts are shared, only the presentation layer differs.
 
 ## Running it
 
@@ -47,6 +47,8 @@ cd android
 ```
 
 The output APK lands at `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+**Release APK** (also type-checks, lints and tests first; needs JDK 17 + the Android SDK, installed by `INSTALL_ANDROID=1 ./scripts/setup-ubuntu.sh`): from the repo root run `./build-mobile-release.sh` (`--aab` adds the Play Store bundle). The output is `android/app/build/outputs/apk/release/app-release.apk`. The release build type is signed with `android/app/debug.keystore` (stock React Native template), so it sideloads fine but is **not Play Store ready** - generate your own keystore and point `signingConfigs.release` in `android/app/build.gradle` at it first. `API_BASE_URL` is baked in at build time from `.env`.
 
 Set `API_BASE_URL` (copy `.env.example` to `.env` - read by [`react-native-config`](https://github.com/lugg/react-native-config)) to point at the backend. The default/recommended value is the Azure-hosted backend, `https://homecontrol-app.azurewebsites.net`, which has a publicly-trusted TLS cert and needs no local setup. It **must be `https://`**, not `http://` (see Auth below), whichever backend you point at.
 
@@ -77,7 +79,7 @@ The auth cookie is `Secure` (`Program.cs`), so it's only stored over an HTTPS co
 The fix, using [mkcert](https://github.com/FiloSottile/mkcert):
 
 ```
-winget install FiloSottile.mkcert
+sudo apt install mkcert libnss3-tools                      # Ubuntu/WSL;  Windows: winget install FiloSottile.mkcert
 mkcert -install                                            # trusts a local CA on this machine
 cd HomeControlBackEnd
 mkdir certs
@@ -93,7 +95,7 @@ dotnet user-secrets set "Kestrel:Certificates:Default:Password" "devcert"
 
 There is deliberately no Android network-security-config or "trust user-installed CAs" mechanism in this app - that would weaken TLS validation for every connection, not just a local dev backend. Use mkcert (a real, if locally-scoped, CA) instead.
 
-**Firewall:** Windows blocks unsolicited inbound connections by default, so a phone on the same Wi-Fi can't reach a local backend (port 7000/5000) or the Metro bundler (port 8081) until something allows it - either an interactive "allow this app" prompt the first time a connection comes in, or explicit rules (run elevated, once):
+**Firewall:** a phone on the same Wi-Fi can't reach a local backend (port 7000/5000) or the Metro bundler (port 8081) until the machine allows it. On Ubuntu with `ufw`: `sudo ufw allow 7000,5000,8081/tcp`. If the dev environment runs in Docker/WSL on a Windows host, the **Windows** firewall (and the container's published ports - `docker/dev/docker-compose.yml` publishes 3000/5000/7000) are what matter: either an interactive "allow this app" prompt the first time a connection comes in, or explicit rules (PowerShell, run elevated, once):
 
 ```
 New-NetFirewallRule -DisplayName "HomeControl Backend HTTPS (dev)" -Direction Inbound -Protocol TCP -LocalPort 7000 -Action Allow -Profile Private,Domain
@@ -103,12 +105,12 @@ New-NetFirewallRule -DisplayName "HomeControl Mobile Metro (dev)" -Direction Inb
 
 ### SignalR transport
 
-The hub connection (`deviceHub.ts`) is forced to `LongPolling | ServerSentEvents`, explicitly excluding WebSockets. There were originally two independent reasons to avoid WebSockets here; only one still applies:
+The hub connection (`deviceHub.ts`) is forced to **`HttpTransportType.LongPolling`** only (the web app uses the default negotiation, i.e. WebSockets when available). Two transports are deliberately not offered here:
 
-- ~~Certificate trust: a raw WebSocket handshake to a host with an untrusted dev cert could behave differently from XHR/fetch-based transports.~~ **Moot now that the default backend (`https://homecontrol-app.azurewebsites.net`) has a publicly-trusted cert.** This was never the primary reason anyway, and doesn't apply to anyone using the default configuration.
-- **Cookie forwarding on the WebSocket upgrade handshake** - React Native's raw WebSocket implementation isn't guaranteed to forward the native cookie store on that handshake the way XHR/fetch-based transports (negotiate, long-polling, SSE) reliably do, and the hub is authenticated via that cookie, not a bearer token. **This is still the operative reason** and is independent of certificate trust. It works, at the cost of somewhat higher latency than a websocket.
+- **WebSockets** - the hub is authenticated by the session cookie, and React Native's raw WebSocket implementation isn't guaranteed to forward the native cookie store on the upgrade handshake the way XHR/fetch-based transports do. This is the operative reason and is independent of certificate trust.
+- **Server-Sent Events** - bare React Native has no global `EventSource` and no polyfill is installed, and `@microsoft/signalr` only wires one up when `typeof EventSource !== 'undefined'`, so requesting it could only ever lose the negotiation to long polling.
 
-Worth re-testing now that there's a stable, trusted-cert HTTPS endpoint to test against - if on-device testing shows WebSockets carrying the cookie reliably on both platforms, the restriction can be lifted.
+The cost is slightly higher latency than a WebSocket. Worth re-testing on a device whether WebSockets carry the cookie reliably on both platforms; if so the restriction can be lifted.
 
 ## Environment configuration
 
@@ -123,4 +125,5 @@ Copy `.env.example` to `.env` and adjust if you're pointing at a local backend i
 ## Known gaps vs. the web app
 
 - Login/unauthorized-account failures still redirect to `/` or `/?error=unauthorized` on the backend (only the success path was changed), so a failed mobile login currently just closes the WebView with a generic error rather than a precise one.
-- No offline/reduced-motion handling beyond what the components naturally get for free.
+- No offline mode. (Reduced motion *is* honoured: the animated background stops when the OS setting is on.)
+- The Android release is debug-signed (see Running it) and iOS has not been built from this environment (needs macOS/Xcode).

@@ -1,5 +1,5 @@
-# Shared helpers for the HomeControl bash scripts (deploy-azure*.sh, run-*.sh,
-# test-*.sh). Source it, don't execute it:
+# Shared helpers for the HomeControl bash scripts (deploy-azure*.sh, run-prod.sh,
+# test-docker.sh, build-mobile-release.sh). Source it, don't execute it:
 #
 #   . "$(dirname "$0")/scripts/lib/common.sh"
 #

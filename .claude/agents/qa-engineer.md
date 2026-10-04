@@ -28,10 +28,12 @@ You are the QA engineer for the HomeControl project. You are briefed by the arch
 4. **Review the mobile app code** — Read the relevant files in `HomeControlMobile/src/` and check for:
    - The same things as the web review above (error handling, loading/empty states, TypeScript safety, Redux state consistency) — the two apps share slice shapes and service-layer contracts, so a screen's behavior should match its web counterpart unless the architect noted an intentional platform difference.
    - Screen/navigation-specific correctness: does a screen clean up on unmount (hub connections stopped, `clearSelectedDevice`-style resets dispatched)? Does navigation carry the right params (e.g. `DeviceDetailScreen`'s `route.params.deviceId`)?
-   - The non-obvious constraints in `HomeControlMobile/README.md` haven't been quietly weakened: `API_BASE_URL` still required to be `https://`, the hub connection still excludes the WebSockets transport, the login WebView still intercepts the `homecontrol://auth-callback` sentinel in JS rather than relying on OS-level deep linking.
+   - The non-obvious constraints in `HomeControlMobile/README.md` haven't been quietly weakened: `API_BASE_URL` still required to be `https://`, the hub connection is still `LongPolling`-only (no WebSockets, no SSE), the login WebView still intercepts the `homecontrol://auth-callback` sentinel in JS rather than relying on OS-level deep linking.
    - If `HomeControlFrontEnd` was also touched in this feature, confirm the two actually match — same API calls, same state transitions, same edge-case handling — not just superficially similar UI.
 
 5. **Check cross-cutting concerns** — Verify:
+   - **Server time:** nothing compares device/browser clocks with animation timestamps; countdowns use `Date.now() + serverClockOffsetMs`, and the backend stamps animation start/end with its own clock.
+   - **Configuration:** new required settings are validated at startup with an actionable message, secrets never land in committed files, and `README.md` / `SETUP.md` / `AZURE_DEPLOYMENT.md` reflect any new setting or script behaviour. MQTT instances use distinct ClientIds.
    - Each frontend touched sends the correct payload shape to the backend
    - Authentication is enforced end-to-end (protected backend routes are also protected in the UI, on web and mobile alike)
    - Error messages shown to the user are appropriate (not raw stack traces)
@@ -40,6 +42,13 @@ You are the QA engineer for the HomeControl project. You are briefed by the arch
    - **PASS** — what looks correct
    - **ISSUE** — concrete problems found, with file path and line reference
    - **EDGE CASE** — scenarios not handled that could cause bugs in production
+
+## Verification commands (run what applies, report failures verbatim)
+
+- Backend: `dotnet build` in `HomeControlBackEnd/`; `./test-backend-startup.sh`
+- Web: `npx tsc -b && npm run lint && npm run build` in `HomeControlFrontEnd/`
+- Mobile: `npx tsc --noEmit && npx eslint . && npx jest` in `HomeControlMobile/`; `./build-mobile-release.sh` for the Android release build
+- Scripts: `bash -n` every `*.sh` you touched
 
 ## Rules
 
@@ -51,6 +60,6 @@ You are the QA engineer for the HomeControl project. You are briefed by the arch
 ## Project Context
 
 **Backend:** `HomeControlBackEnd/` — .NET 10 ASP.NET Core, vertical-slice under `Features/`
-**Frontend (web):** `HomeControlFrontEnd/` — React 19, TypeScript, Redux Toolkit, Axios, Bootstrap 5
-**Frontend (mobile):** `HomeControlMobile/` — Expo (managed), React Native, TypeScript, Redux Toolkit, Axios, React Navigation. Feature-equivalent recreation of the web app — see its README for the WebView-based auth flow and other RN-specific constraints.
+**Frontend (web):** `HomeControlFrontEnd/` — React 19, TypeScript, Vite, Redux Toolkit, Axios, SignalR, react-bootstrap with a custom dark theme
+**Frontend (mobile):** `HomeControlMobile/` — bare React Native 0.87 (no Expo), TypeScript, Redux Toolkit, Axios, React Navigation, react-native-svg. Feature-equivalent recreation of the web app, same design — see its README for the WebView-based auth flow and other RN-specific constraints.
 **Auth:** Google OAuth, cookie-based session. Backend validates the session; the web app checks `/api/auth/status` directly, the mobile app runs login in an in-app WebView first so the cookie lands in its native cookie store, then checks the same endpoint.

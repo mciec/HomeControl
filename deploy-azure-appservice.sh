@@ -152,6 +152,14 @@ az webapp config appsettings set \
   || die "Failed to set app settings!"
 ok "App settings configured"
 
+# SignalR (/hubs/devices) should run over WebSockets. App Service has them OFF by default, which
+# silently degrades the hub to buffered long-polling/SSE and delays live updates. (Always On is
+# deliberately not forced here: it needs a paid tier decision, and without it the app is unloaded
+# when idle - which also stops its MQTT subscription. Consider `az webapp config set --always-on true`.)
+az webapp config set --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --web-sockets-enabled true -o none \
+  || die "Failed to enable WebSockets!"
+ok "WebSockets enabled"
+
 banner "Restarting Web App"
 az webapp restart --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" -o none
 ok "Web App restarted"

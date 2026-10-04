@@ -1,426 +1,109 @@
-# Azure Deployment Guide
+# Azure Deployment
 
-This guide covers deploying the HomeControl application to Microsoft Azure.
+HomeControl ships as **one Docker image**: the React frontend is built into the .NET backend's `wwwroot`, so a single container serves the UI, the API and the SignalR hub. The image is built remotely in **Azure Container Registry** (`az acr build`), so **no local Docker is needed** to deploy.
 
-## Current deployment (App Service) - TL;DR
+**Current production:** Azure App Service `homecontrol-app` in resource group `homecontrol-rg` -> https://homecontrol-app.azurewebsites.net (this is also the default backend of the mobile app).
 
-The live app runs on **Azure App Service** (`homecontrol-app` in resource group `homecontrol-rg`,
-`https://homecontrol-app.azurewebsites.net`). Frontend and backend ship as one Docker image
-(the React build is served from the backend's `wwwroot`), built remotely by `az acr build` -
-no local Docker needed. From Ubuntu/WSL:
+## Pick a target
 
-```bash
-INSTALL_AZ_CLI=1 ./scripts/setup-ubuntu.sh       # once: installs the Azure CLI
-az login --use-device-code                        # once per machine
-./deploy-azure-appservice.sh -g homecontrol-rg -n homecontrol-app -y
-```
+| Script | Target | Notes |
+|---|---|---|
+| `deploy-azure-appservice.sh` | **App Service (Web App for Containers)** - *current* | Free managed TLS cert on `*.azurewebsites.net`, Linux B1 plan. Updates in place. |
+| `deploy-azure-aca.sh` | Container Apps | Serverless, auto-scaling; updates in place. |
+| `deploy-azure.sh` | Container Instances | Simplest; deletes and recreates the instance on each deploy; self-signed HTTPS only. |
 
-Google and MQTT secrets are read from the backend's `dotnet user-secrets` and set as App Service
-app settings. Other targets: `deploy-azure-aca.sh` (Container Apps), `deploy-azure.sh` (Container
-Instances) - same options, see `--help`.
+All three share their logic in `scripts/lib/common.sh`, read secrets from the backend's `dotnet user-secrets`, and take the same options (`--help` lists them).
 
 ## Prerequisites
 
-1. **Azure Account**: [Create a free account](https://azure.microsoft.com/free/)
-2. **Azure CLI**: [Install Azure CLI](https://docs.microsoft.com/cli/azure/install-azure-cli)
-3. **Docker**: only for local image testing (`test-docker.sh`); deployments build in ACR
-4. **Google OAuth Credentials**: See [SETUP.md](SETUP.md) for instructions
+1. An Azure subscription and the Azure CLI: `INSTALL_AZ_CLI=1 ./scripts/setup-ubuntu.sh`
+2. Log in once per machine (device code works headless / in containers): `az login --use-device-code`
+3. The backend's user secrets set (`Google:*` and `Mqtt:*` - see [SETUP.md](SETUP.md)); the deploy copies them into Azure as app settings.
+4. The Google OAuth client lists the deployed URL as a redirect URI: `https://<app>.azurewebsites.net/signin-google`.
 
-## Deployment Options
-
-### Option 1: Azure Container Apps (Recommended)
-- Fully managed serverless container platform
-- Auto-scaling and built-in load balancing
-- Pay only for what you use
-- Easy HTTPS/SSL management
-
-### Option 2: Azure App Service
-- Platform-as-a-Service (PaaS)
-- Good for continuous deployment
-- Built-in monitoring
-
-### Option 3: Azure Container Instances
-- Simple container deployment
-- Good for testing/development
-- No orchestration features
-
-## Quick Deployment with Azure Container Apps
-
-### Step 1: Install Azure CLI and Login
+## Deploy
 
 ```bash
-# Install Azure CLI (if not already installed)
-# Windows: Download from https://aka.ms/installazurecliwindows
-# macOS: brew install azure-cli
-# Linux: curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
-
-# Login to Azure
-az login
-
-# Set your subscription (if you have multiple)
-az account list --output table
-az account set --subscription "YOUR_SUBSCRIPTION_NAME"
+./deploy-azure-appservice.sh -g homecontrol-rg -n homecontrol-app -l eastus -y
 ```
 
-### Step 2: Update Google OAuth Redirect URIs
+| Option | Meaning |
+|---|---|
+| `-g, --resource-group` | Resource group (created if missing) |
+| `-n, --app-name` | Web App name - globally unique, becomes `<name>.azurewebsites.net` |
+| `-l, --location` | Region (default `eastus`) |
+| `--google-client-id/--google-client-secret` | Override the user secrets |
+| `-y, --auto-deploy` | No prompts; fails with a list of whatever is missing |
 
-Before deploying, you need to add your Azure domain to Google OAuth settings:
+Without `-y` it prompts for anything not given and asks for confirmation. Re-running is safe: existing resources are reused and the app is updated to the freshly built image.
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Navigate to your OAuth 2.0 Client ID
-3. Add these Authorized redirect URIs (replace with your actual domain):
-   - `https://YOUR_APP_NAME.azurecontainerapps.io/signin-google`
-   - `https://YOUR_CUSTOM_DOMAIN.com/signin-google` (if using custom domain)
+### What the script does
 
-### Step 3: Run the Automated Deployment Script
+1. Checks the Azure CLI and login; creates the resource group and a Basic **ACR** named `<app name without hyphens>acr`.
+2. Assembles a minimal build context (frontend, backend, `Shared/`, `Dockerfile`) - `az acr build` uploads its whole directory, so the full repo (mobile `node_modules` etc.) must not go along - and builds `homecontrol:latest` in ACR.
+3. Creates the Linux **B1** plan `<app>-plan` (the cheapest tier that runs custom containers), then creates or updates the Web App with the ACR image.
+4. Sets the app settings: `WEBSITES_PORT=8080`, `ASPNETCORE_ENVIRONMENT=Production`, `Google__ClientId/ClientSecret`, `Mqtt__Host/User/Password`, `WEBSITES_ENABLE_APP_SERVICE_STORAGE=false`.
+5. Enables **WebSockets** (App Service has them off by default, which degrades SignalR to buffered long-polling and delays live device updates) and restarts the app.
+
+Why `Production` matters: `Program.cs` only trusts the proxy's `X-Forwarded-Proto` header outside Development. In Development it calls `UseHttpsRedirection()`, which - not knowing App Service already terminated TLS - redirects every request to the container's unreachable port 8081.
+
+## Configuration in Azure
+
+The backend gets its configuration purely from environment variables here (see the configuration reference in [README.md](README.md)); it **stops at startup with a message naming the missing key** if `Google__*` or `Mqtt__*` is absent. Change a value without redeploying:
 
 ```bash
-# From the repository root
-./deploy-azure-aca.sh
+az webapp config appsettings set -n homecontrol-app -g homecontrol-rg --settings Mqtt__Password='<new>'
+az webapp restart -n homecontrol-app -g homecontrol-rg
 ```
 
-The script will prompt you for:
-- Azure resource group name
-- Location (e.g., eastus, westeurope)
-- Container app name
-- Google Client ID
-- Google Client Secret
+**MQTT ClientId:** the deployment uses `homecontrol-backend` (from `appsettings.json`); local runs use their own (`homecontrol-backend-dev`, `-local`, `-docker`) so they never knock it off the broker.
 
-### Step 4: Access Your Application
+**Always On** is off on the current plan, so an idle app is unloaded after a while - and with it the MQTT subscription that feeds live updates. If you want the app always listening: `az webapp config set -n homecontrol-app -g homecontrol-rg --always-on true`.
 
-After deployment completes, the script will output your application URL:
-```
-https://YOUR_APP_NAME.azurecontainerapps.io
-```
-
-## Manual Deployment Steps
-
-If you prefer to deploy manually or need more control:
-
-### 1. Build and Push Docker Image
+## Operations
 
 ```bash
-# Set variables
-$RESOURCE_GROUP="homecontrol-rg"
-$LOCATION="eastus"
-$ACR_NAME="homecontrolacr"
-$IMAGE_NAME="homecontrol"
-$TAG="latest"
-
-# Create resource group
-az group create --name $RESOURCE_GROUP --location $LOCATION
-
-# Create Azure Container Registry
-az acr create --resource-group $RESOURCE_GROUP --name $ACR_NAME --sku Basic
-
-# Login to ACR
-az acr login --name $ACR_NAME
-
-# Build and push image
-az acr build --registry $ACR_NAME --image "${IMAGE_NAME}:${TAG}" .
+az webapp log config -n homecontrol-app -g homecontrol-rg --docker-container-logging filesystem   # restarts the app
+az webapp log tail   -n homecontrol-app -g homecontrol-rg          # live logs
+az webapp log download -n homecontrol-app -g homecontrol-rg --log-file logs.zip
+az webapp restart -n homecontrol-app -g homecontrol-rg
+az webapp config show -n homecontrol-app -g homecontrol-rg --query '{webSockets:webSocketsEnabled,alwaysOn:alwaysOn}'
 ```
 
-### 2. Create Container App Environment
+Useful log lines: `MQTT Started ... lag=` (device-vs-backend clock skew, informational), `SignalR DeviceStateChanged ... sent N ms after MQTT receipt`, `MQTT client disconnected` (repeating = two instances share a ClientId).
+
+## Container Apps / Container Instances
+
+`./deploy-azure-aca.sh -g <rg> -n <app> -y` registers the providers, installs the `containerapp` CLI extension, creates an environment and a Container App (port 8080, external ingress, 0.5 vCPU / 1 GiB, 1-3 replicas) with the same secrets as Container App secrets. `./deploy-azure.sh -g <rg> -n <name> -y` creates a Container Instance with a public DNS name (`<name>.<region>.azurecontainer.io`, ports 8080/8081 - HTTPS uses the image's self-signed certificate, so browsers warn). Both print the exact Google redirect URI to register.
+
+## Manual steps (what the script automates)
 
 ```bash
-# Install Container Apps extension
-az extension add --name containerapp --upgrade
-
-# Register provider
-az provider register --namespace Microsoft.App
-az provider register --namespace Microsoft.OperationalInsights
-
-# Create Container Apps environment
-$ENVIRONMENT="homecontrol-env"
-az containerapp env create --name $ENVIRONMENT --resource-group $RESOURCE_GROUP --location $LOCATION
+az group create -n homecontrol-rg -l eastus
+az acr create -g homecontrol-rg -n homecontrolappacr --sku Basic --admin-enabled true
+az acr build -r homecontrolappacr -t homecontrol:latest .      # run from a trimmed context, see above
+az appservice plan create -g homecontrol-rg -n homecontrol-app-plan --is-linux --sku B1
+az webapp create -g homecontrol-rg -n homecontrol-app --plan homecontrol-app-plan \
+  --container-image-name homecontrol:latest --container-registry-url https://homecontrolappacr.azurecr.io \
+  --container-registry-user <acr user> --container-registry-password <acr password>
+az webapp config appsettings set -g homecontrol-rg -n homecontrol-app --settings \
+  WEBSITES_PORT=8080 ASPNETCORE_ENVIRONMENT=Production Google__ClientId=... Google__ClientSecret=... \
+  Mqtt__Host=... Mqtt__User=... Mqtt__Password=...
+az webapp config set -g homecontrol-rg -n homecontrol-app --web-sockets-enabled true
 ```
 
-### 3. Deploy Container App
-
-```bash
-$CONTAINER_APP="homecontrol-app"
-
-# Get ACR credentials
-$ACR_SERVER=$(az acr show --name $ACR_NAME --query loginServer --output tsv)
-$ACR_USERNAME=$(az acr credential show --name $ACR_NAME --query username --output tsv)
-$ACR_PASSWORD=$(az acr credential show --name $ACR_NAME --query passwords[0].value --output tsv)
-
-# Create container app
-az containerapp create `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --environment $ENVIRONMENT `
-  --image "${ACR_SERVER}/${IMAGE_NAME}:${TAG}" `
-  --registry-server $ACR_SERVER `
-  --registry-username $ACR_USERNAME `
-  --registry-password $ACR_PASSWORD `
-  --target-port 8080 `
-  --ingress external `
-  --min-replicas 1 `
-  --max-replicas 3 `
-  --secrets google-client-id=YOUR_GOOGLE_CLIENT_ID google-client-secret=YOUR_GOOGLE_CLIENT_SECRET `
-  --env-vars "Google__ClientId=secretref:google-client-id" "Google__ClientSecret=secretref:google-client-secret" "ASPNETCORE_ENVIRONMENT=Production"
-```
-
-### 4. Get Application URL
-
-```bash
-az containerapp show --name $CONTAINER_APP --resource-group $RESOURCE_GROUP --query properties.configuration.ingress.fqdn --output tsv
-```
-
-## Configure HTTPS and Custom Domain
-
-### Enable HTTPS (Automatic)
-Azure Container Apps automatically provides HTTPS with a managed certificate for the default domain.
-
-### Add Custom Domain
-
-```bash
-# Add custom domain
-az containerapp hostname add `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --hostname www.yourdomain.com
-
-# Bind certificate (automatic managed certificate)
-az containerapp hostname bind `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --hostname www.yourdomain.com `
-  --validation-method HTTP
-```
-
-Update your DNS:
-- Add CNAME record: `www.yourdomain.com` → `your-app.azurecontainerapps.io`
-
-## Update Application Secrets
-
-To update Google OAuth credentials or other secrets:
-
-```bash
-# Update secrets
-az containerapp secret set `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --secrets google-client-id=NEW_CLIENT_ID google-client-secret=NEW_CLIENT_SECRET
-
-# Restart app to apply changes
-az containerapp revision restart `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP
-```
-
-## Continuous Deployment
-
-### Option 1: GitHub Actions
-
-Create `.github/workflows/deploy.yml`:
-
-```yaml
-name: Deploy to Azure
-
-on:
-  push:
-    branches: [ main ]
-
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: Login to Azure
-        uses: azure/login@v1
-        with:
-          creds: ${{ secrets.AZURE_CREDENTIALS }}
-
-      - name: Build and push image
-        run: |
-          az acr build --registry homecontrolacr --image homecontrol:${{ github.sha }} .
-
-      - name: Deploy to Container App
-        run: |
-          az containerapp update \
-            --name homecontrol-app \
-            --resource-group homecontrol-rg \
-            --image homecontrolacr.azurecr.io/homecontrol:${{ github.sha }}
-```
-
-### Option 2: Azure DevOps
-
-1. Create a new Azure DevOps project
-2. Connect to your repository
-3. Create a pipeline using the Docker template
-4. Configure the pipeline to build and push to ACR
-5. Add a release pipeline to deploy to Container Apps
-
-## Monitoring and Logs
-
-### View Logs
-
-```bash
-# Stream live logs
-az containerapp logs show `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --follow
-
-# View recent logs
-az containerapp logs show `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --tail 100
-```
-
-### Enable Application Insights
-
-```bash
-# Create Application Insights
-$APP_INSIGHTS="homecontrol-insights"
-az monitor app-insights component create `
-  --app $APP_INSIGHTS `
-  --location $LOCATION `
-  --resource-group $RESOURCE_GROUP
-
-# Get instrumentation key
-$INSTRUMENTATION_KEY=$(az monitor app-insights component show --app $APP_INSIGHTS --resource-group $RESOURCE_GROUP --query instrumentationKey --output tsv)
-
-# Update container app with Application Insights
-az containerapp update `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --set-env-vars "APPLICATIONINSIGHTS_CONNECTION_STRING=InstrumentationKey=$INSTRUMENTATION_KEY"
-```
-
-## Scaling
-
-### Manual Scaling
-
-```bash
-az containerapp update `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --min-replicas 2 `
-  --max-replicas 10
-```
-
-### Auto-scaling Rules
-
-```bash
-# Scale based on HTTP requests
-az containerapp update `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --scale-rule-name http-rule `
-  --scale-rule-type http `
-  --scale-rule-http-concurrency 100
-```
-
-## Cost Optimization
-
-1. **Use Free Tier**: First 180,000 vCPU-seconds and 360,000 GiB-seconds per month are free
-2. **Set Minimum Replicas to 0**: Scale to zero when not in use (not recommended for production)
-3. **Use Spot Instances**: For non-production environments
-4. **Monitor Usage**: Set up billing alerts
-
-```bash
-# Scale to zero when idle (development only)
-az containerapp update `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --min-replicas 0
-```
-
-## Backup and Disaster Recovery
-
-### Export Configuration
-
-```bash
-# Export container app configuration
-az containerapp show `
-  --name $CONTAINER_APP `
-  --resource-group $RESOURCE_GROUP `
-  --output json > containerapp-config.json
-```
-
-### Multi-Region Deployment
-
-For high availability, deploy to multiple regions:
-
-1. Create container apps in different regions
-2. Use Azure Front Door or Traffic Manager for load balancing
-3. Configure geo-replication for Azure Container Registry
+When updating an existing app with `az webapp config container set`, pass the **fully qualified** image (`<acr>.azurecr.io/homecontrol:latest`); a bare name is looked up on Docker Hub.
 
 ## Troubleshooting
 
-### Container Fails to Start
-
-```bash
-# Check logs
-az containerapp logs show --name $CONTAINER_APP --resource-group $RESOURCE_GROUP --tail 100
-
-# Check revision status
-az containerapp revision list --name $CONTAINER_APP --resource-group $RESOURCE_GROUP --output table
-```
-
-### Authentication Issues
-
-1. Verify Google OAuth redirect URIs match your Azure domain
-2. Check that secrets are correctly set
-3. Ensure allowed email addresses are configured
-
-### Performance Issues
-
-1. Enable Application Insights
-2. Increase CPU/memory allocation
-3. Add more replicas
-4. Check for slow database queries or external API calls
-
-## Security Best Practices
-
-1. **Use Managed Identities**: For accessing Azure resources
-2. **Store Secrets in Key Vault**: Instead of container app secrets
-3. **Enable HTTPS Only**: Redirect HTTP to HTTPS
-4. **Restrict Network Access**: Use Virtual Networks if needed
-5. **Regular Updates**: Keep base images and dependencies updated
+- **Container won't start / HTTP 503:** `az webapp log tail`; a startup message like `Mqtt:Host is not set` names the missing app setting.
+- **Redirect loop to `:8081`:** `ASPNETCORE_ENVIRONMENT` is not `Production`.
+- **`redirect_uri_mismatch` on login:** add `https://<app>.azurewebsites.net/signin-google` to the Google OAuth client.
+- **Live updates arrive late:** check WebSockets are enabled (command above) and that no second backend shares the MQTT ClientId.
+- **Image build fails with CS0246 `MqttManager`:** the build context is missing `Shared/` (the backend project references `../Shared/MqttManager`).
 
 ## Cleanup
 
-To delete all resources:
-
 ```bash
-# Delete resource group (deletes all resources in it)
-az group delete --name $RESOURCE_GROUP --yes --no-wait
+az group delete --name homecontrol-rg --yes     # deletes everything in the group
 ```
-
-## Cost Estimate
-
-Approximate monthly costs for production deployment:
-
-- **Container App**: ~$50-200/month (depending on usage)
-- **Container Registry**: ~$5/month (Basic tier)
-- **Application Insights**: ~$0-50/month (depending on volume)
-- **Custom Domain SSL**: Free (managed certificates)
-
-**Total**: ~$55-255/month
-
-Free tier includes:
-- 180,000 vCPU-seconds
-- 360,000 GiB-seconds
-- Unlimited HTTP requests
-
-## Next Steps
-
-1. Set up continuous deployment with GitHub Actions or Azure DevOps
-2. Configure custom domain and SSL certificates
-3. Enable Application Insights for monitoring
-4. Set up automated backups
-5. Configure multi-region deployment for high availability
-
-## Support
-
-- [Azure Container Apps Documentation](https://docs.microsoft.com/azure/container-apps/)
-- [Azure CLI Reference](https://docs.microsoft.com/cli/azure/)
-- [Azure Pricing Calculator](https://azure.microsoft.com/pricing/calculator/)
-
-For issues specific to this application, see [README.md](README.md)
