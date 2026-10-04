@@ -10,4 +10,16 @@ public sealed class LedStripeWithSensorsState
     public DateTimeOffset? LastOverrideLeftReceivedUtc { get; set; }
 
     public DateTimeOffset? LastOverrideRightReceivedUtc { get; set; }
+
+    /// <summary>The five CurrentAnimation* fields are all null together when idle, and all
+    /// set together while an animation is running.</summary>
+    public string? CurrentAnimationName { get; set; }
+
+    public OverrideDirection? CurrentAnimationDirection { get; set; }
+
+    public AnimationSource? CurrentAnimationSource { get; set; }
+
+    public DateTimeOffset? CurrentAnimationStartedAtUtc { get; set; }
+
+    public DateTimeOffset? CurrentAnimationEndsAtUtc { get; set; }
 }

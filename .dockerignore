@@ -8,8 +8,15 @@
 README.md
 SETUP.md
 
-# Scripts
+# Scripts, dev tooling and projects the image never touches
 *.ps1
+*.sh
+scripts/
+docker/
+docker-compose*.yml
+.deploy-build-context
+.claude
+DevicesAndSensors/
 
 # IDE
 .vs
@@ -28,6 +35,10 @@ HomeControlFrontEnd/npm-debug.log*
 HomeControlFrontEnd/yarn-debug.log*
 HomeControlFrontEnd/yarn-error.log*
 HomeControlFrontEnd/pnpm-debug.log*
+
+# Mobile - the Dockerfile never touches this project; excluded entirely so its
+# node_modules/native build artifacts don't bloat the Docker build context.
+HomeControlMobile/
 
 # Backend
 HomeControlBackEnd/bin

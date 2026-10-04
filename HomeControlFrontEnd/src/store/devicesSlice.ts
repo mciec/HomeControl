@@ -9,6 +9,16 @@ interface DevicesState {
   selectedDevice: DeviceDetail | null;
   detailLoading: boolean;
   detailError: string | null;
+  // Server clock minus local clock (ms), re-measured each time a device state
+  // arrives. Add it to Date.now() to get server time.
+  serverClockOffsetMs: number;
+}
+
+// Offset of the server's clock from this client's, from a state's serverTimeUtc.
+// Network latency makes it under-read by the one-way trip time (tens of ms).
+function clockOffsetFrom(serverTimeUtc: string): number | null {
+  const offset = Date.parse(serverTimeUtc) - Date.now();
+  return Number.isNaN(offset) ? null : offset;
 }
 
 const initialState: DevicesState = {
@@ -18,6 +28,7 @@ const initialState: DevicesState = {
   selectedDevice: null,
   detailLoading: false,
   detailError: null,
+  serverClockOffsetMs: 0,
 };
 
 const devicesSlice = createSlice({
@@ -41,6 +52,7 @@ const devicesSlice = createSlice({
     },
     setSelectedDevice: (state, action: PayloadAction<DeviceDetail>) => {
       state.selectedDevice = action.payload;
+      state.serverClockOffsetMs = clockOffsetFrom(action.payload.state.serverTimeUtc) ?? state.serverClockOffsetMs;
       state.detailLoading = false;
       state.detailError = null;
     },
@@ -66,8 +78,26 @@ const devicesSlice = createSlice({
         case 'LedStripeWithSensors':
           if (current.type === 'LedStripeWithSensors') {
             current.state = action.payload.state;
+            state.serverClockOffsetMs =
+              clockOffsetFrom(action.payload.state.serverTimeUtc) ?? state.serverClockOffsetMs;
           }
           break;
+      }
+    },
+    // Client-side fallback for when an animation's duration elapses locally
+    // but no corresponding `Stopped` push ever arrives (dropped MQTT
+    // message, hub hiccup, etc.). Guarded so it can never clobber a newer
+    // animation: only clears if the device is still selected and its
+    // `currentAnimation` is still the exact one (by startedAtUtc) that
+    // locally expired.
+    animationLocallyExpired: (state, action: PayloadAction<{ deviceId: string; startedAtUtc: string }>) => {
+      const current = state.selectedDevice;
+      if (!current || current.id !== action.payload.deviceId) {
+        return;
+      }
+      if (current.type === 'LedStripeWithSensors'
+          && current.state.currentAnimation?.startedAtUtc === action.payload.startedAtUtc) {
+        current.state.currentAnimation = null;
       }
     },
   },
@@ -82,5 +112,6 @@ export const {
   setDetailError,
   clearSelectedDevice,
   deviceStateChanged,
+  animationLocallyExpired,
 } = devicesSlice.actions;
 export default devicesSlice.reducer;

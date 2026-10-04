@@ -1,66 +1,56 @@
+/* Design tokens + base. The app is a fixed dark theme layered on Bootstrap's dark mode
+   (html[data-bs-theme="dark"], set in index.html). :root and body pin the same deep-navy
+   base the animated background (.app-background, see App.css) paints over, so there is no
+   light flash on iOS Safari's overscroll bounce or before the stylesheet loads. */
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  --hc-bg: #070b16;
+  --hc-surface: rgba(17, 24, 39, 0.62);
+  --hc-surface-strong: rgba(17, 24, 39, 0.85);
+  --hc-border: rgba(148, 163, 184, 0.16);
+  --hc-border-strong: rgba(148, 163, 184, 0.3);
+  --hc-text: #e6edf7;
+  --hc-muted: #94a3b8;
+  --hc-accent: #22d3ee;
+  --hc-accent-2: #8b5cf6;
+  --hc-success: #34d399;
+  --hc-danger: #fb7185;
+  --hc-gradient: linear-gradient(135deg, #22d3ee 0%, #6366f1 55%, #8b5cf6 100%);
+  --hc-radius: 18px;
+  --hc-shadow: 0 10px 40px -12px rgba(0, 0, 0, 0.65);
+
+  /* Feed Bootstrap's own tokens so every stock component follows the theme. */
+  --bs-body-bg: var(--hc-bg);
+  --bs-body-color: var(--hc-text);
+  --bs-secondary-color: var(--hc-muted);
+  --bs-border-color: var(--hc-border);
+  --bs-link-color: #67e8f9;
+  --bs-link-hover-color: #a5f3fc;
+
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+  color-scheme: dark;
+  color: var(--hc-text);
+  background-color: var(--hc-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
-}
-a:hover {
-  color: #535bf2;
-}
-
 body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background-color: var(--hc-bg);
+  color: var(--hc-text);
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
+a {
   font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  text-decoration: inherit;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+::selection {
+  background: rgba(34, 211, 238, 0.35);
 }

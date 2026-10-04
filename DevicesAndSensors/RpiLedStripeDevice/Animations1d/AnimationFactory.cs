@@ -35,4 +35,10 @@ public class AnimationFactory
 
         return animation;
     }
+
+    public IAnimation GetRandomAnimation()
+    {
+        var animations = _animations as IReadOnlyList<IAnimation> ?? _animations.ToList();
+        return animations[Random.Shared.Next(animations.Count)];
+    }
 }

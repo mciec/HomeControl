@@ -17,6 +17,16 @@ public class AuthController : ControllerBase
         "marczibaa@gmail.com"
     };
 
+    // returnUrl comes from an unauthenticated query string, so it must be
+    // restricted to known-safe destinations - otherwise a crafted login link
+    // could ride a legitimate Google sign-in to an open redirect. Only a
+    // same-site relative URL or the mobile app's own custom scheme qualify.
+    private const string MobileAuthCallbackScheme = "homecontrol://";
+
+    private bool IsAllowedReturnUrl(string? returnUrl) =>
+        !string.IsNullOrEmpty(returnUrl) &&
+        (Url.IsLocalUrl(returnUrl) || returnUrl.StartsWith(MobileAuthCallbackScheme, StringComparison.OrdinalIgnoreCase));
+
     [HttpGet("login")]
     public IActionResult Login(string? returnUrl = null)
     {
@@ -44,10 +54,19 @@ public class AuthController : ControllerBase
             return Redirect("/?error=unauthorized");
         }
 
+        // A caller (e.g. the React Native app, via a custom URL scheme like
+        // homecontrol://auth-callback) can ask to be redirected back to itself
+        // instead of the web frontend. Fall back to today's behavior when no
+        // (valid) returnUrl is given, so the web app's login flow is unaffected.
+        if (IsAllowedReturnUrl(returnUrl))
+        {
+            return Redirect(returnUrl!);
+        }
+
         // Redirect to frontend in development, or root in production
         var isDevelopment = HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsDevelopment();
         var redirectTarget = isDevelopment ? "http://localhost:3000" : "/";
-        
+
         return Redirect(redirectTarget);
     }
 

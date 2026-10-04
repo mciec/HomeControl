@@ -22,8 +22,10 @@ HomeControl/
 │   │   └── main.tsx
 │   ├── vite.config.ts
 │   └── package.json
-├── run-dev.ps1                  # Development mode script
-├── run-prod.ps1                 # Production build script
+├── run-dev.sh                   # Development mode script
+├── run-prod.sh                  # Production build + run script
+├── deploy-azure-appservice.sh   # Azure App Service deployment (current)
+├── scripts/setup-ubuntu.sh      # Ubuntu/WSL toolchain setup
 └── README.md
 ```
 
@@ -31,7 +33,7 @@ HomeControl/
 
 - .NET 10 SDK
 - Node.js 18+ and npm
-- Windows PowerShell 5.0+
+- Ubuntu (bare metal, VM, WSL2 or a container) with bash - `./scripts/setup-ubuntu.sh` installs everything
 - Google OAuth credentials (for authentication)
 
 ## Setup Instructions
@@ -51,13 +53,36 @@ HomeControl/
 
 Secrets are stored using the [.NET User Secrets](https://learn.microsoft.com/en-us/aspnet/core/security/app-secrets) manager and are **never** committed to source control. Do not add them to `appsettings.json`.
 
-```powershell
+```bash
 cd HomeControlBackEnd
 dotnet user-secrets set "Google:ClientId" "YOUR_GOOGLE_CLIENT_ID"
 dotnet user-secrets set "Google:ClientSecret" "YOUR_GOOGLE_CLIENT_SECRET"
 ```
 
-User secrets are loaded automatically when `ASPNETCORE_ENVIRONMENT=Development` (which `run-dev.ps1` sets). For production and Docker runs, secrets are injected as environment variables by the respective scripts (`run-prod.ps1`, `test-docker.ps1`, `deploy-azure.ps1`) — they all read from the user secrets store automatically.
+User secrets are loaded automatically when `ASPNETCORE_ENVIRONMENT=Development` (which `run-dev.sh` sets). For production and Docker runs, secrets are injected as environment variables by the respective scripts (`run-prod.sh`, `test-docker.sh`, `deploy-azure*.sh`) — they all read from the user secrets store automatically.
+
+### Configuration reference
+
+The backend reads its settings from the standard ASP.NET Core layers, **later ones overriding earlier**:
+
+1. `HomeControlBackEnd/appsettings.json` - non-secret defaults, committed (`Mqtt:ClientId/Port/UseTLS`, the `Devices` list). Secret keys are listed there with empty values so the shape is visible.
+2. `appsettings.{Environment}.json` - optional, git-ignored local overrides.
+3. **User secrets** (`dotnet user-secrets`) - secrets for local development. **Only loaded when `ASPNETCORE_ENVIRONMENT=Development`** - which is why `run-prod.sh`/`test-docker.sh` read them and pass them on as environment variables.
+4. **Environment variables** - how Docker and Azure App Service supply the same keys; `:` becomes `__` (`Mqtt:Host` -> `Mqtt__Host`). The `deploy-azure*.sh` scripts set these from your user secrets.
+
+| Setting | Required | Secret | Local dev | Azure / Docker |
+|---|---|---|---|---|
+| `Google:ClientId`, `Google:ClientSecret` | yes (deployed) / warning (dev) | yes | user secrets | `Google__ClientId`, `Google__ClientSecret` |
+| `Mqtt:Host`, `Mqtt:User`, `Mqtt:Password` | yes | yes | user secrets | `Mqtt__Host`, `Mqtt__User`, `Mqtt__Password` |
+| `Mqtt:ClientId`, `Mqtt:Port`, `Mqtt:UseTLS` | yes | no | `appsettings.json` | `appsettings.json` (or `Mqtt__*` to override) |
+| `Devices` | yes | no | `appsettings.json` | `appsettings.json` |
+| `ASPNETCORE_ENVIRONMENT` | - | no | `Development` (launch profiles) | `Production` (Dockerfile / deploy scripts) |
+
+Missing required settings stop the app at startup with a message naming the key and where to set it.
+
+**Two different MQTT sections, on purpose:** the *backend* (this repo's `HomeControlBackEnd`) uses the `Mqtt` section; the Raspberry Pi *device* apps under `DevicesAndSensors/` use `MqttConfig`. They hold the same broker credentials but are separate programs with separate configuration - do not put `MqttConfig:*` into the backend's secrets.
+
+**MQTT `ClientId` must be unique per running instance.** A broker allows one connection per ClientId, so two backends sharing `homecontrol-backend` (e.g. a local run while Azure is up) keep kicking each other off. For a local run alongside the deployed app, override it: `dotnet user-secrets set "Mqtt:ClientId" "homecontrol-backend-dev" --project HomeControlBackEnd`.
 
 #### MQTT broker credentials (Devices feature)
 
@@ -65,7 +90,7 @@ The Devices feature connects to the same HiveMQ Cloud broker used by the physica
 entrance LED strip device. Non-secret connection settings (`ClientId`, `Port`, `UseTLS`)
 live in `appsettings.json` under `Mqtt`; the broker host and credentials are secrets:
 
-```powershell
+```bash
 cd HomeControlBackEnd
 dotnet user-secrets set "Mqtt:Host" "YOUR_HIVEMQ_CLOUD_HOST"
 dotnet user-secrets set "Mqtt:User" "YOUR_MQTT_USERNAME"
@@ -78,7 +103,7 @@ Use the same broker/credentials as configured for the RPi device project
 
 ### 3. Install Dependencies
 
-```powershell
+```bash
 # Backend dependencies are managed by .NET
 # Frontend dependencies
 cd HomeControlFrontEnd
@@ -89,8 +114,8 @@ npm install
 
 ### Development Mode
 
-```powershell
-.\run-dev.ps1
+```bash
+./run-dev.sh
 ```
 
 This script will:
@@ -107,21 +132,21 @@ This script will:
 
 ### Production Mode
 
-```powershell
-.\run-prod.ps1
+```bash
+./run-prod.sh
 ```
 
 This script will:
 - Build the React frontend
 - Copy the built files to the backend's `wwwroot` folder
 - Build and publish the .NET backend
-- Create a production-ready application
+- Start it with `ASPNETCORE_ENVIRONMENT=Production` and the user secrets passed as environment variables
 
-**To run the published application:**
+**To run the published application again later:**
 
-```powershell
-cd HomeControlBackEnd\bin\Release\publish
-.\HomeControlBackEnd.exe
+```bash
+cd HomeControlBackEnd/bin/Release/publish
+dotnet HomeControlBackEnd.dll
 ```
 
 Access the application at: https://localhost:7000

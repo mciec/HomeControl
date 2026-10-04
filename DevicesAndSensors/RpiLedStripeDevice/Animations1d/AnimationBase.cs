@@ -10,6 +10,7 @@ public abstract class AnimationBase : IAnimation
     protected int FrameNumber;
     protected Direction Direction = Direction.NONE;
     public IDisplay Display { get; private set; }
+    public string Name => GetType().Name;
 
     protected AnimationBase(IDisplay display, ILogger<AnimationBase> logger)
     {

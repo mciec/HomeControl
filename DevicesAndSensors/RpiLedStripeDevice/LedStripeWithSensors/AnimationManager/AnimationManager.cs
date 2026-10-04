@@ -28,7 +28,6 @@ internal sealed class AnimationManager
 
     private const string MessageLeft = "LEFT";
     private const string MessageRight = "RIGHT";
-    private const string MessageUnknown = "UNKNOWN";
     private readonly bool _verbose = false;
     private readonly int _frameDurationMs;
     private readonly int _switchOffDelayMs;
@@ -124,7 +123,7 @@ internal sealed class AnimationManager
             _logger.LogError(ex, "{direction} motion detector disabled", MessageRight);
         }
 
-        using var animation = _animationFactory.GetAnimation(typeof(TraceAnimation));
+        var animation = _animationFactory.GetRandomAnimation();
 
         _mqttClient.MessageReceived += (sender, args) =>
         {
@@ -154,20 +153,22 @@ internal sealed class AnimationManager
 
             if (OverrideLeft)
             {
+                animation = _animationFactory.GetRandomAnimation();
                 animation.Start(Direction.LEFT);
                 State = AnimationState.OverrideLeftRunning;
                 AnimationStart = now;
                 OverrideLeft = false;
-                _mqttClient.Publish(_topics.MotionDetectedTopic, $"{MessageLeft} START OVERRIDE");
+                PublishAnimationEvent(AnimationEventType.Started, AnimationDirection.Left, AnimationSource.Override, animation.Name);
             }
             else
             if (OverrideRight)
             {
+                animation = _animationFactory.GetRandomAnimation();
                 animation.Start(Direction.RIGHT);
                 State = AnimationState.OverrideRightRunning;
                 AnimationStart = now;
                 OverrideRight = false;
-                _mqttClient.Publish(_topics.MotionDetectedTopic, $"{MessageRight} START OVERRIDE");
+                PublishAnimationEvent(AnimationEventType.Started, AnimationDirection.Right, AnimationSource.Override, animation.Name);
             }
 
             if (State == AnimationState.OverrideLeftRunning || State == AnimationState.OverrideRightRunning)
@@ -180,7 +181,7 @@ internal sealed class AnimationManager
                     continue;
                 }
                 animation.Stop();
-                _mqttClient.Publish(_topics.MotionDetectedTopic, $"{DirectionFromState} STOP OVERRIDE");
+                PublishAnimationEvent(AnimationEventType.Stopped, AnimationDirectionFromState, AnimationSource.Override, animation.Name);
                 State = AnimationState.Stopped;
             }
 
@@ -199,24 +200,26 @@ internal sealed class AnimationManager
                     continue;
                 }
                 animation.Stop();
-                _mqttClient.Publish(_topics.MotionDetectedTopic, $"{DirectionFromState} STOP");
+                PublishAnimationEvent(AnimationEventType.Stopped, AnimationDirectionFromState, AnimationSource.Motion, animation.Name);
                 State = AnimationState.Stopped;
             }
 
             if (MovementLeft)
             {
+                animation = _animationFactory.GetRandomAnimation();
                 animation.Start(Direction.LEFT);
                 State = AnimationState.MovementLeftRunning;
                 AnimationStart = now;
-                _mqttClient.Publish(_topics.MotionDetectedTopic, $"{DirectionFromState} START");
+                PublishAnimationEvent(AnimationEventType.Started, AnimationDirection.Left, AnimationSource.Motion, animation.Name);
             }
             else
             if (MovementRight)
             {
+                animation = _animationFactory.GetRandomAnimation();
                 animation.Start(Direction.RIGHT);
                 State = AnimationState.MovementRightRunning;
                 AnimationStart = now;
-                _mqttClient.Publish(_topics.MotionDetectedTopic, $"{DirectionFromState} START");
+                PublishAnimationEvent(AnimationEventType.Started, AnimationDirection.Right, AnimationSource.Motion, animation.Name);
             }
         }
     }
@@ -240,12 +243,25 @@ internal sealed class AnimationManager
         return false;
     }
 
-    private string DirectionFromState => State switch
+    private AnimationDirection AnimationDirectionFromState => State switch
     {
-        AnimationState.OverrideLeftRunning => MessageLeft,
-        AnimationState.OverrideRightRunning => MessageRight,
-        AnimationState.MovementLeftRunning => MessageLeft,
-        AnimationState.MovementRightRunning => MessageRight,
-        _ => MessageUnknown
+        AnimationState.OverrideLeftRunning => AnimationDirection.Left,
+        AnimationState.OverrideRightRunning => AnimationDirection.Right,
+        AnimationState.MovementLeftRunning => AnimationDirection.Left,
+        AnimationState.MovementRightRunning => AnimationDirection.Right,
+        _ => AnimationDirection.Left
     };
+
+    private void PublishAnimationEvent(AnimationEventType eventType, AnimationDirection direction, AnimationSource source, string animationName)
+    {
+        var message = new AnimationEventMessage(
+            eventType,
+            direction,
+            source,
+            animationName,
+            AnimationStart.ToUniversalTime(),
+            _switchOffDelayMs);
+
+        _mqttClient.Publish(_topics.MotionDetectedTopic, message.ToJson());
+    }
 }

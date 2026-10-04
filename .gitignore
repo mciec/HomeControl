@@ -7,6 +7,10 @@ HomeControlBackEnd/*.user
 HomeControlBackEnd/appsettings.*.json
 !HomeControlBackEnd/appsettings.json
 HomeControlBackEnd/wwwroot/
+# Local mkcert dev certificate (machine-specific - see HomeControlMobile/README.md)
+HomeControlBackEnd/certs/
+# Throwaway minimal Docker build context assembled by scripts/lib/common.sh (deploy-azure*.sh)
+.deploy-build-context/
 
 # Frontend
 HomeControlFrontEnd/node_modules/

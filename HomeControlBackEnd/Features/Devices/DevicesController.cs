@@ -77,5 +77,5 @@ public sealed class DevicesController : ControllerBase
     }
 
     private static LedStripeWithSensorsStateDto ToStateDto(LedStripeWithSensorsState state) =>
-        new(state.LastOverrideLeftReceivedUtc, state.LastOverrideRightReceivedUtc);
+        LedStripeWithSensorsStateDto.FromState(state);
 }
