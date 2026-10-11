@@ -35,12 +35,12 @@ Secrets live in .NET user secrets (never in `appsettings.json`, never in git):
 cd HomeControlBackEnd
 dotnet user-secrets set "Google:ClientId"     "<client id>"
 dotnet user-secrets set "Google:ClientSecret" "<client secret>"
-dotnet user-secrets set "Mqtt:Host"           "<your HiveMQ Cloud host>"
-dotnet user-secrets set "Mqtt:User"           "<mqtt user>"
-dotnet user-secrets set "Mqtt:Password"       "<mqtt password>"
+dotnet user-secrets set "Mqtt:WebSocketServer" "wss://<deployed app host>/mqtt"
+dotnet user-secrets set "Mqtt:User"            "homecontrol-backend"
+dotnet user-secrets set "Mqtt:Password"        "<the backend's broker password>"
 ```
 
-The backend refuses to start without the three `Mqtt:*` secrets and tells you which one is missing. Use the same broker credentials as the Raspberry Pi device (its `MqttConfig` section) if you want to see the real device's traffic.
+Production runs its own MQTT broker inside the container (see [Broker/README.md](Broker/README.md)), so a local backend needs a broker to talk to: the deployed one, reached with the `Mqtt:WebSocketServer` above (the password is the `Broker:BackendPassword` user secret that `deploy-azure-aca.sh` generated - read it with `dotnet user-secrets list` on the machine that deployed), or any other broker via `Mqtt:Host` (plus `Mqtt:Port`/`Mqtt:UseTLS`). The backend refuses to start without a broker and tells you which setting is missing. Use a different MQTT ClientId than production (the dev scripts do) and the same user as the deployed backend if you want to see the real device's traffic.
 
 ## 4. Development certificate (optional)
 

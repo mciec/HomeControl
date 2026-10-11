@@ -11,6 +11,7 @@ SETUP.md
 # Scripts, dev tooling and projects the image never touches
 *.ps1
 *.sh
+!Broker/entrypoint.sh
 scripts/
 docker/
 docker-compose*.yml

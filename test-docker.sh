@@ -39,6 +39,7 @@ docker run -d --name homecontrol-test \
   -e "Google__ClientSecret=$GOOGLE_CLIENT_SECRET" \
   -e "Mqtt__ClientId=${Mqtt__ClientId:-homecontrol-backend-docker}" \
   -e "Mqtt__Host=$MQTT_HOST" \
+  -e "Mqtt__WebSocketServer=$MQTT_WS" \
   -e "Mqtt__User=$MQTT_USER" \
   -e "Mqtt__Password=$MQTT_PASSWORD" \
   homecontrol:test >/dev/null || die "Failed to start container!"

@@ -25,6 +25,11 @@ There's also a separate MQTT topic for running the animation on demand - the web
 "OverrideTopic": "entrance/override"
 The MQTT section of the device's appsettings is called "MqttConfig" (the backend's is "Mqtt"); give each program its own
 ClientId - a broker allows one connection per ClientId.
+The broker is Mosquitto running inside the HomeControl container in Azure; the device reaches it as MQTT over a secure
+WebSocket: "WebSocketServer": "wss://<app host>/mqtt" (port 443, certificate from the platform - nothing to install),
+with user "raspberry". The password is not in appSettings.json: set the environment variable
+DOTNET_LEDSTRIPEWITHSENSORS_MqttConfig__Password (see RpiDebugging/readme.md). The user may only read entrance/override
+and write entrance/motion (HomeControl/Broker/aclfile).
 The app is capable to work without internet connection. There's a retry mechanism handling all of 
 the MQTT connection stuff.
 It tries to connect and send information about detected motion to MQTT, but gives up (per messsage) after the

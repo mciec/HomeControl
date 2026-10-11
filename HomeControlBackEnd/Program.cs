@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.HttpOverrides;
 using System.Security.Claims;
 using System.Text.Json.Serialization;
+using HomeControlBackEnd.Features.Broker;
 using HomeControlBackEnd.Features.Devices;
 using Microsoft.Extensions.Options;
 using MqttManager;
@@ -152,6 +153,12 @@ app.Use(async (context, next) =>
         context.User.Identity?.IsAuthenticated == true ? "authenticated" : "anonymous",
         agent);
 });
+
+// Embedded Mosquitto broker -> reachable from outside as wss://<host>/mqtt (see Features/Broker). Placed
+// before authentication on purpose: MQTT clients authenticate against the broker, not with the web cookie.
+var brokerWebSocketTarget = builder.Configuration["Broker:WebSocketTarget"];
+if (!string.IsNullOrWhiteSpace(brokerWebSocketTarget))
+    app.UseMqttWebSocketProxy("/mqtt", new Uri(brokerWebSocketTarget));
 
 app.UseAuthentication();
 app.UseAuthorization();

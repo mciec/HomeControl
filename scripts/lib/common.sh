@@ -58,27 +58,50 @@ confirm_or_exit() {
   [ "$answer" = "y" ] || { err "Deployment cancelled."; exit 0; }
 }
 
-# Fills GOOGLE_CLIENT_ID/SECRET and MQTT_HOST/USER/PASSWORD from user secrets
-# where not already set. Mqtt is not optional: DeviceMqttListenerService is a
-# BackgroundService that throws (HiveMqttClientException) if Mqtt:Host is unset,
-# and an unhandled BackgroundService exception stops the whole host
+# Fills GOOGLE_CLIENT_ID/SECRET and MQTT_HOST/MQTT_WS/MQTT_USER/MQTT_PASSWORD from user
+# secrets where not already set. MQTT_HOST (a TCP broker) or MQTT_WS (a wss:// URI, e.g. the
+# deployed embedded broker's wss://<app>/mqtt) is needed by anything that runs the backend
+# *without* its own embedded broker. Mqtt is not optional: DeviceMqttListenerService is a
+# BackgroundService that throws (HiveMqttClientException) if no broker is set, and an
+# unhandled BackgroundService exception stops the whole host
 # (HostOptions.BackgroundServiceExceptionBehavior.StopHost) - unlike Google
 # OAuth it has no "just don't log in" fallback.
 load_app_secrets() {
+  local want_mqtt=1; [ "${1:-}" = "--no-mqtt" ] && want_mqtt=0
   load_user_secrets
   GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID:-${USER_SECRETS[Google:ClientId]:-}}"
   GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET:-${USER_SECRETS[Google:ClientSecret]:-}}"
   MQTT_HOST="${MQTT_HOST:-${USER_SECRETS[Mqtt:Host]:-}}"
-  MQTT_USER="${MQTT_USER:-${USER_SECRETS[Mqtt:User]:-}}"
+  MQTT_WS="${MQTT_WS:-${USER_SECRETS[Mqtt:WebSocketServer]:-}}"
+  MQTT_USER="${MQTT_USER:-${USER_SECRETS[Mqtt:User]:-homecontrol-backend}}"
   MQTT_PASSWORD="${MQTT_PASSWORD:-${USER_SECRETS[Mqtt:Password]:-}}"
   if [ -n "$GOOGLE_CLIENT_ID" ] && [ -n "$GOOGLE_CLIENT_SECRET" ]; then
     ok "Google secrets loaded."
   fi
-  if [ -n "$MQTT_HOST" ] && [ -n "$MQTT_USER" ] && [ -n "$MQTT_PASSWORD" ]; then
+  [ "$want_mqtt" = "1" ] || return 0
+  if [ -n "$MQTT_HOST$MQTT_WS" ] && [ -n "$MQTT_USER" ] && [ -n "$MQTT_PASSWORD" ]; then
     ok "MQTT broker secrets loaded."
   else
-    warn "WARNING: Mqtt:Host/User/Password not found in user secrets - the app will crash on startup without them."
+    warn "WARNING: Mqtt:Host (or Mqtt:WebSocketServer)/Password not found in user secrets - a backend without its embedded broker will crash on startup."
   fi
+}
+
+# Returns the value of user secret $1, or prints nothing. Needs load_user_secrets to have run.
+user_secret() { printf '%s' "${USER_SECRETS[$1]:-}"; }
+
+# ensure_user_secret KEY -> prints the value of user secret KEY, first generating and storing a random
+# one (the backend's `dotnet user-secrets`, i.e. on this machine only - never in the repo) if missing.
+ensure_user_secret() {
+  local key="$1" value
+  value="$(user_secret "$key")"
+  if [ -z "$value" ]; then
+    value="$(openssl rand -base64 36 | tr -d '/+=\n' | cut -c1-40)"
+    dotnet user-secrets set "$key" "$value" --project "$BACKEND_PATH" >/dev/null \
+      || die "Could not store user secret $key"
+    USER_SECRETS["$key"]="$value"
+    info "Generated and stored a new random user secret $key" >&2
+  fi
+  printf '%s' "$value"
 }
 
 # Appends a message to the MISSING array for every named variable that is empty.
@@ -151,7 +174,8 @@ ensure_acr() {
 # .dockerignore, which has caused multi-GB, multi-minute-stalling uploads.
 # Build from a throwaway minimal context containing only what the Dockerfile
 # needs. Shared/ is included because HomeControlBackEnd.csproj has a
-# ProjectReference to ../Shared/MqttManager.
+# ProjectReference to ../Shared/MqttManager; Broker/ and ThirdParty/ because the image builds and
+# configures the embedded Mosquitto broker.
 acr_build() {
   banner "Building Docker Image (remotely, in ACR)"
   local ctx="$REPO_ROOT/.deploy-build-context" rc=0
@@ -164,7 +188,7 @@ acr_build() {
     --exclude='HomeControlBackEnd/wwwroot' \
     --exclude='HomeControlBackEnd/appsettings.Development.json' \
     --exclude='*.user' \
-    -cf - HomeControlFrontEnd HomeControlBackEnd Shared Dockerfile \
+    -cf - HomeControlFrontEnd HomeControlBackEnd Shared Broker ThirdParty Dockerfile \
     | tar -C "$ctx" -xf -
   info "Context size: $(du -sh "$ctx" | cut -f1). Building (this may take several minutes)..."
   az acr build --registry "$1" --image "$2" "$ctx" || rc=$?

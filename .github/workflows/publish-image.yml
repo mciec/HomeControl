@@ -3,7 +3,8 @@
 #
 # Azure Container Apps pulls this image anonymously, so the package must be PUBLIC (GitHub creates new
 # packages as private: Packages -> homecontrol -> Package settings -> Change visibility -> Public, once).
-# The image contains no secrets - Google/MQTT credentials are supplied as environment variables at runtime.
+# The image contains no secrets - Google credentials and the MQTT broker passwords are supplied as
+# environment variables at runtime. It also contains Mosquitto, built from ThirdParty/mosquitto.
 name: Publish image
 
 on:
@@ -14,6 +15,8 @@ on:
       - HomeControlBackEnd/**
       - HomeControlFrontEnd/**
       - Shared/**
+      - Broker/**
+      - ThirdParty/mosquitto/**
       - .github/workflows/publish-image.yml
   workflow_dispatch:
 

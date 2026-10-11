@@ -36,12 +36,20 @@ public sealed class MqttClient : IAsyncDisposable
         var options = new HiveMQClientOptions
         {
             ClientId = _config.ClientId,
-            Host = _config.Host,
-            Port = _config.Port,
-            UseTLS = _config.UseTLS,
             UserName = _config.User,
             Password = ToSecureString(_config.Password)
         };
+
+        if (!string.IsNullOrWhiteSpace(_config.WebSocketServer))
+        {
+            options.WebSocketServer = _config.WebSocketServer;
+        }
+        else
+        {
+            options.Host = _config.Host;
+            options.Port = _config.Port;
+            options.UseTLS = _config.UseTLS;
+        }
 
         _channelManagerWithRecovery.StartConsumer(
             recoveryAsyncFunc: async (CancellationToken ct) => await ReconnectAsync().ConfigureAwait(false),

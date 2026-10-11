@@ -6,7 +6,7 @@ namespace HomeControlBackEnd.Features.Devices;
 /// <summary>
 /// Fails host startup with an actionable message when the "Mqtt" configuration section is
 /// incomplete, instead of letting the broker connection crash later with an opaque
-/// HiveMqttClientException. Host/User/Password are secrets and never live in appsettings.json:
+/// HiveMqttClientException. Host (or WebSocketServer)/User/Password are secrets and never live in appsettings.json:
 /// locally they come from `dotnet user-secrets`, in Azure from app settings (Mqtt__Host, ...).
 /// </summary>
 public sealed class MqttClientConfigValidator : IValidateOptions<MqttClientConfig>
@@ -26,7 +26,11 @@ public sealed class MqttClientConfigValidator : IValidateOptions<MqttClientConfi
         }
 
         Require(nameof(options.ClientId), options.ClientId);
-        Require(nameof(options.Host), options.Host);
+        // Either a plain TCP broker (Host) or a WebSocket URI (e.g. the deployed broker's wss://<app>/mqtt, handy for local runs).
+        if (string.IsNullOrWhiteSpace(options.WebSocketServer))
+            Require(nameof(options.Host), options.Host);
+        else if (!Uri.TryCreate(options.WebSocketServer, UriKind.Absolute, out var ws) || ws.Scheme is not ("ws" or "wss"))
+            failures.Add("Mqtt:WebSocketServer must be an absolute ws:// or wss:// URI.");
         Require(nameof(options.User), options.User);
         Require(nameof(options.Password), options.Password);
 

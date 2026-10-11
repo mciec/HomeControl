@@ -217,10 +217,10 @@ Next steps (not automated, they hold secrets / machine-specific state):
       cd HomeControlBackEnd
       dotnet user-secrets set "Google:ClientId" "<id>"
       dotnet user-secrets set "Google:ClientSecret" "<secret>"
-      dotnet user-secrets set "Mqtt:Host" "<host>"
-      dotnet user-secrets set "Mqtt:User" "<user>"
+      dotnet user-secrets set "Mqtt:WebSocketServer" "wss://<deployed app host>/mqtt"   # or Mqtt:Host for a TCP broker
+      dotnet user-secrets set "Mqtt:User" "homecontrol-backend"
       dotnet user-secrets set "Mqtt:Password" "<password>"
-    The backend refuses to start without Mqtt:Host/User/Password.
+    The backend refuses to start without a broker (Mqtt:WebSocketServer or Mqtt:Host) and Mqtt:User/Password.
   - Dev certificate for https://localhost:7000: HomeControlBackEnd/certs is git-ignored;
     copy it from the old machine or regenerate it (mkcert / dotnet dev-certs), and set
     Kestrel:Certificates:Default:Path/Password as user secrets if you use it.

@@ -8,7 +8,7 @@
 	$ nano /home/mciec/runLedStripeWithSensors.sh
 
 	#!/bin/sh
-	export DOTNET_LEDSTRIPEWITHSENSORS_MqttConfig__Password={your MQTT password}
+	export DOTNET_LEDSTRIPEWITHSENSORS_MqttConfig__Password={the "raspberry" broker password: dotnet user-secrets list --project HomeControlBackEnd, key Broker:DevicePassword}
 	cd /home/mciec/projects/LedStripeWithSensors
 	/home/mciec/.dotnet/dotnet LedStripeWithSensors.dll
 

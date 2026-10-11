@@ -11,13 +11,19 @@
 #
 # Sizing/cost: ONE replica, 0.25 vCPU / 0.5 GiB on the Consumption plan, always on (min = max = 1).
 #   * Exactly one replica is required, not just cheap: device state is in memory, SignalR has no
-#     backplane, and every replica would connect to MQTT with the same ClientId (the broker would kick
-#     them off each other).
+#     backplane, the MQTT broker (Mosquitto) runs inside the container and holds the live
+#     connections, and every replica would connect to MQTT with the same ClientId.
 #   * Billing: ~$4/month while idle (the normal state for this app), after the monthly free grant of
 #     180k vCPU-s / 360k GiB-s; at most ~$14/month if it were busy 24/7.
 # The URL is https://<app>.<random>.<region>.azurecontainerapps.io (stable for the life of the
 # environment) - register <url>/signin-google in the Google OAuth client.
-# Secrets (Google:*, Mqtt:*) come from `dotnet user-secrets`, as for the other deploy scripts.
+# MQTT: the image contains its own Mosquitto broker next to the backend (see Broker/ and ThirdParty/). It
+# listens on loopback only; the Raspberry Pi device (and any MQTT client) reaches it as a secure
+# WebSocket on the app's HTTPS port: wss://<app fqdn>/mqtt. (Raw MQTT-over-TLS on 8883 would need an
+# *external TCP* ingress port, which Container Apps only offers in custom-VNet environments.)
+# Secrets: Google:* come from `dotnet user-secrets`, as for the other deploy scripts. The two broker
+# passwords (Broker:BackendPassword, Broker:DevicePassword) are generated on first deploy and stored in
+# the same user-secrets store; they are passed to Azure as Container App secrets and never enter the repo.
 set -euo pipefail
 . "$(dirname "$0")/scripts/lib/common.sh"
 
@@ -59,14 +65,12 @@ banner "Azure Container Apps Deployment
 HomeControl Application"
 
 info "Loading secrets from user secrets store..."
-load_app_secrets
+load_app_secrets --no-mqtt   # MQTT is the embedded broker here: its passwords are generated below
 
 if [ "$AUTO_DEPLOY" = "1" ]; then
   require_vars "RESOURCE_GROUP|--resource-group" "APP_NAME|--app-name" \
     "GOOGLE_CLIENT_ID|Google:ClientId (user secrets or --google-client-id)" \
-    "GOOGLE_CLIENT_SECRET|Google:ClientSecret (user secrets or --google-client-secret)" \
-    "MQTT_HOST|Mqtt:Host (user secrets)" "MQTT_USER|Mqtt:User (user secrets)" \
-    "MQTT_PASSWORD|Mqtt:Password (user secrets)"
+    "GOOGLE_CLIENT_SECRET|Google:ClientSecret (user secrets or --google-client-secret)"
   fail_if_missing
 else
   prompt_value RESOURCE_GROUP "Enter Azure Resource Group name"
@@ -76,6 +80,8 @@ else
   prompt_value GOOGLE_CLIENT_SECRET "Enter Google OAuth Client Secret" secret
 fi
 LOCATION="${LOCATION:-polandcentral}"
+BROKER_BACKEND_PASSWORD="$(ensure_user_secret Broker:BackendPassword)"
+BROKER_DEVICE_PASSWORD="$(ensure_user_secret Broker:DevicePassword)"
 ENVIRONMENT_NAME="$APP_NAME-env"
 
 echo
@@ -85,7 +91,7 @@ echo "  Location:         $LOCATION"
 echo "  Container App:    $APP_NAME   (1 replica, 0.25 vCPU / 0.5 GiB, always on)"
 echo "  Environment:      $ENVIRONMENT_NAME (Consumption)"
 echo "  Image:            $IMAGE"
-echo "  MQTT ClientId:    $MQTT_CLIENT_ID"
+echo "  MQTT broker:      embedded Mosquitto (wss://<app fqdn>/mqtt), backend ClientId $MQTT_CLIENT_ID"
 echo
 [ "$AUTO_DEPLOY" = "1" ] || confirm_or_exit
 
@@ -131,10 +137,15 @@ banner "Deploying Container App"
 # A new revision suffix forces a fresh pull of a moving tag such as :latest.
 REVISION_SUFFIX="r$(date -u +%m%d%H%M%S)"
 SECRETS=("google-client-id=$GOOGLE_CLIENT_ID" "google-client-secret=$GOOGLE_CLIENT_SECRET"
-         "mqtt-host=$MQTT_HOST" "mqtt-user=$MQTT_USER" "mqtt-password=$MQTT_PASSWORD")
+         "broker-backend-password=$BROKER_BACKEND_PASSWORD" "broker-device-password=$BROKER_DEVICE_PASSWORD")
+# BROKER_*_PASSWORD make /entrypoint.sh start the embedded broker and point the backend's Mqtt__* at it.
 ENV_VARS=("Google__ClientId=secretref:google-client-id" "Google__ClientSecret=secretref:google-client-secret"
-          "Mqtt__Host=secretref:mqtt-host" "Mqtt__User=secretref:mqtt-user" "Mqtt__Password=secretref:mqtt-password"
+          "BROKER_BACKEND_PASSWORD=secretref:broker-backend-password"
+          "BROKER_DEVICE_PASSWORD=secretref:broker-device-password"
           "Mqtt__ClientId=$MQTT_CLIENT_ID" "ASPNETCORE_ENVIRONMENT=Production")
+# Settings/secrets of the previous external (HiveMQ Cloud) broker, dropped when updating an older deployment.
+OLD_ENV_VARS=(Mqtt__Host Mqtt__User Mqtt__Password)
+OLD_SECRETS=(mqtt-host mqtt-user mqtt-password)
 # min = max = 1: see the header. cpu/memory are the smallest consumption combination.
 SIZING=(--min-replicas 1 --max-replicas 1 --cpu 0.25 --memory 0.5Gi)
 
@@ -143,8 +154,12 @@ if az containerapp show --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" -o
   az containerapp secret set --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" --secrets "${SECRETS[@]}" -o none \
     || die "Failed to update secrets!"
   az containerapp update --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" \
-    --image "$IMAGE" --revision-suffix "$REVISION_SUFFIX" "${SIZING[@]}" --set-env-vars "${ENV_VARS[@]}" -o none \
+    --image "$IMAGE" --revision-suffix "$REVISION_SUFFIX" "${SIZING[@]}" --set-env-vars "${ENV_VARS[@]}" \
+    --remove-env-vars "${OLD_ENV_VARS[@]}" -o none \
     || die "Deployment failed. Check the Azure portal for details."
+  # Only after the new revision stopped referencing them.
+  az containerapp secret remove --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" \
+    --secret-names "${OLD_SECRETS[@]}" -o none 2>/dev/null || true
 else
   # --transport http: HTTP/1.1 end to end, which SignalR's WebSocket and long-polling transports expect.
   az containerapp create --name "$APP_NAME" --resource-group "$RESOURCE_GROUP" \
@@ -172,6 +187,13 @@ printf '\n%s=====================================\nDeployment Completed Successf
 info "Application URL:"
 cmd "https://$APP_FQDN"
 google_redirect_notice "https://$APP_FQDN/signin-google"
+echo
+info "MQTT broker (embedded Mosquitto, encrypted by the HTTPS ingress):"
+echo "  Raspberry Pi device - appSettings.json MqttConfig:"
+cmd "WebSocketServer = wss://$APP_FQDN/mqtt     User = raspberry"
+echo "  and its password (not shown here; it is in your user secrets) as an environment variable on the Pi:"
+cmd "DOTNET_LEDSTRIPEWITHSENSORS_MqttConfig__Password=\$(dotnet user-secrets list --project HomeControlBackEnd | sed -n 's/^Broker:DevicePassword = //p')"
+echo "  Any other MQTT client (browser/mobile): connect to wss://$APP_FQDN/mqtt with a user from Broker/aclfile."
 echo
 info "Useful Commands:"
 echo "  Live logs:"

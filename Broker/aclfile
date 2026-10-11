@@ -1,0 +1,13 @@
+# Per-user topic permissions for the embedded broker. Keep in sync with the topics in
+# HomeControlBackEnd/appsettings.json ("Devices") and the device's appSettings.json ("MqttConfig").
+# Anything not listed here is denied.
+
+# The backend listens for animation events and sends override commands.
+user homecontrol-backend
+topic read entrance/motion
+topic write entrance/override
+
+# The Raspberry Pi LED stripe device does the opposite.
+user raspberry
+topic read entrance/override
+topic write entrance/motion

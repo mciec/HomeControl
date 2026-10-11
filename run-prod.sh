@@ -38,7 +38,7 @@ if [ -z "$GOOGLE_CLIENT_ID" ] || [ -z "$GOOGLE_CLIENT_SECRET" ]; then
   cmd "dotnet user-secrets set \"Google:ClientSecret\" \"<secret>\" --project HomeControlBackEnd"
 fi
 export Google__ClientId="$GOOGLE_CLIENT_ID" Google__ClientSecret="$GOOGLE_CLIENT_SECRET"
-export Mqtt__Host="$MQTT_HOST" Mqtt__User="$MQTT_USER" Mqtt__Password="$MQTT_PASSWORD"
+export Mqtt__Host="$MQTT_HOST" Mqtt__WebSocketServer="$MQTT_WS" Mqtt__User="$MQTT_USER" Mqtt__Password="$MQTT_PASSWORD"
 export Mqtt__ClientId="${Mqtt__ClientId:-homecontrol-backend-local}"
 export ASPNETCORE_ENVIRONMENT=Production
 

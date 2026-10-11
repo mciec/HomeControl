@@ -3,12 +3,14 @@
 A home-automation system: a **.NET 10 backend**, a **React web app**, a **React Native mobile app** and the **Raspberry Pi firmware** that drives an LED strip. Sign in with Google, see what a device is doing in real time and override it with one tap.
 
 ```
- ┌────────────┐  HTTPS + SignalR   ┌──────────────────┐   MQTT (HiveMQ Cloud)   ┌──────────────────┐
- │ Web (React)│◄──────────────────►│                  │◄───────────────────────►│ Raspberry Pi     │
- ├────────────┤   cookie session   │ HomeControlBackEnd│  entrance/override  ──► │ LedStripeWith-   │
- │ Mobile (RN)│◄──────────────────►│  (.NET 10)       │  ◄── entrance/motion    │ Sensors + LEDs   │
- └────────────┘                    └──────────────────┘                          └──────────────────┘
+ ┌────────────┐  HTTPS + SignalR   ┌─────────────────────────┐   MQTT over wss://…/mqtt   ┌──────────────────┐
+ │ Web (React)│◄──────────────────►│ one container:          │◄──────────────────────────►│ Raspberry Pi     │
+ ├────────────┤   cookie session   │  HomeControlBackEnd     │  entrance/override  ──►    │ LedStripeWith-   │
+ │ Mobile (RN)│◄──────────────────►│  + Mosquitto broker     │  ◄── entrance/motion       │ Sensors + LEDs   │
+ └────────────┘                    └─────────────────────────┘                            └──────────────────┘
 ```
+
+The MQTT broker ([Eclipse Mosquitto](https://github.com/eclipse-mosquitto/mosquitto), built from source in `ThirdParty/mosquitto`) runs **in the same container as the backend**. It listens on loopback only; the backend talks to it directly, and the Raspberry Pi (or any other MQTT client) reaches it as MQTT over a secure WebSocket on the app's HTTPS port - `wss://<app host>/mqtt` - which the backend forwards to the broker. Users, passwords and per-topic permissions are the broker's (`Broker/`). See [Broker/README.md](Broker/README.md).
 
 - **Override:** the UI `POST`s `/api/devices/{id}/override`; the backend publishes `LEFT`/`RIGHT` to `entrance/override`.
 - **Events:** the device publishes JSON `Started`/`Stopped` animation events (override *or* motion-triggered) on `entrance/motion`. The backend stamps each animation with **its own clock** (so device/host clock skew can't shift anything), keeps the state in memory and pushes it to every client over SignalR (`/hubs/devices`). Clients count the progress bar down against **server time** (`serverTimeUtc`).
@@ -20,12 +22,15 @@ HomeControl/
 ├── HomeControlBackEnd/            # .NET 10 ASP.NET Core API, vertical slices under Features/
 │   └── Features/
 │       ├── Auth/                  # Google OAuth (cookie session), allow-listed emails
+│       ├── Broker/                # /mqtt: secure-WebSocket forwarder to the embedded Mosquitto
 │       ├── Devices/               # device registry, MQTT listener, SignalR hub, override endpoint
 │       ├── Home/  Sample/         # root endpoint, public/protected demo endpoints
 ├── HomeControlFrontEnd/           # React 19 + TypeScript + Vite 7 + Redux Toolkit (web)
 ├── HomeControlMobile/             # React Native 0.87 (bare CLI) - mirrors the web app, see its README
 ├── DevicesAndSensors/             # Raspberry Pi firmware (.NET) + animations + Blazor simulator
 ├── Shared/MqttManager/            # MQTT client with retry/recovery, used by backend and device
+├── Broker/                        # embedded Mosquitto: config, ACL, container entrypoint (see its README)
+├── ThirdParty/mosquitto/          # Mosquitto 2.1.2 source (plain copy), built by the Dockerfile
 ├── scripts/                       # setup-ubuntu.sh + lib/common.sh (shared helpers)
 ├── docker/dev/                    # dev-container image + compose
 ├── Dockerfile  docker-compose.yml # production image (frontend served from the backend's wwwroot)
@@ -49,9 +54,10 @@ HomeControl/
 cd HomeControlBackEnd
 dotnet user-secrets set "Google:ClientId"     "<id>"
 dotnet user-secrets set "Google:ClientSecret" "<secret>"
-dotnet user-secrets set "Mqtt:Host"           "<hivemq host>"
-dotnet user-secrets set "Mqtt:User"           "<user>"
-dotnet user-secrets set "Mqtt:Password"       "<password>"
+# MQTT broker for local runs: the one deployed to Azure (wss://<app host>/mqtt) or any external broker
+dotnet user-secrets set "Mqtt:WebSocketServer" "wss://<app host>/mqtt"
+dotnet user-secrets set "Mqtt:User"            "homecontrol-backend"
+dotnet user-secrets set "Mqtt:Password"        "<Broker:BackendPassword, created by deploy-azure-aca.sh>"
 cd ..
 
 (cd HomeControlFrontEnd && npm ci)
@@ -83,16 +89,18 @@ The backend reads its settings from the standard ASP.NET Core layers, **later on
 | Setting | Required | Secret | Local dev | Azure / Docker |
 |---|---|---|---|---|
 | `Google:ClientId`, `Google:ClientSecret` | yes (deployed) / warning (dev) | yes | user secrets | `Google__ClientId`, `Google__ClientSecret` |
-| `Mqtt:Host`, `Mqtt:User`, `Mqtt:Password` | yes | yes | user secrets | `Mqtt__Host`, `Mqtt__User`, `Mqtt__Password` |
+| `Mqtt:Host` **or** `Mqtt:WebSocketServer`, `Mqtt:User`, `Mqtt:Password` | yes, unless the embedded broker runs | yes | user secrets | `Mqtt__Host`/`Mqtt__WebSocketServer`, `Mqtt__User`, `Mqtt__Password`. In the container image with the embedded broker these are set by `Broker/entrypoint.sh` |
 | `Mqtt:ClientId`, `Mqtt:Port`, `Mqtt:UseTLS` | yes | no | `appsettings.json` | `appsettings.json` (or `Mqtt__*` to override) |
+| `Broker:BackendPassword`, `Broker:DevicePassword` | for the embedded broker | yes | user secrets (generated by `deploy-azure-aca.sh`; not read by the app itself) | Container App secrets, exposed as `BROKER_BACKEND_PASSWORD` / `BROKER_DEVICE_PASSWORD` |
+| `Broker:WebSocketTarget` | no | no | empty (forwarder off) | set by `Broker/entrypoint.sh` to the local broker's WebSocket listener |
 | `Devices` | yes | no | `appsettings.json` | `appsettings.json` |
 | `ASPNETCORE_ENVIRONMENT` | - | no | `Development` (launch profiles) | `Production` (Dockerfile / deploy scripts) |
 
 Missing required settings stop the app at startup with a message naming the key and where to set it.
 
-**Two different MQTT sections, on purpose:** the *backend* uses the `Mqtt` section; the Raspberry Pi *device* apps under `DevicesAndSensors/` use `MqttConfig`. They hold the same broker credentials but are separate programs - do not put `MqttConfig:*` into the backend's secrets.
+**Two different MQTT sections, on purpose:** the *backend* uses the `Mqtt` section; the Raspberry Pi *device* apps under `DevicesAndSensors/` use `MqttConfig`. They connect to the same broker with **different users** (`homecontrol-backend` / `raspberry`, see `Broker/aclfile`) and are separate programs - do not put `MqttConfig:*` into the backend's secrets. The device uses `MqttConfig:WebSocketServer` (`wss://<app host>/mqtt`) and gets its password from the `DOTNET_LEDSTRIPEWITHSENSORS_MqttConfig__Password` environment variable.
 
-**MQTT `ClientId` must be unique per running instance.** A broker allows one connection per ClientId, so two backends sharing one keep kicking each other off (the symptom is `MQTT client disconnected` / reconnect loops in both). Azure uses `homecontrol-backend` (from `appsettings.json`); `run-dev.sh` defaults to `homecontrol-backend-dev`, `run-prod.sh` to `homecontrol-backend-local`, and Docker runs to `homecontrol-backend-docker`. Override any of them with the `Mqtt__ClientId` environment variable.
+**MQTT `ClientId` must be unique per running instance.** A broker allows one connection per ClientId, so two backends sharing one keep kicking each other off (the symptom is `MQTT client disconnected` / reconnect loops in both). Azure uses `homecontrol-backend-aca`; `run-dev.sh` defaults to `homecontrol-backend-dev`, `run-prod.sh` to `homecontrol-backend-local`, and Docker runs to `homecontrol-backend-docker`. Override any of them with the `Mqtt__ClientId` environment variable.
 
 ## Google OAuth
 
