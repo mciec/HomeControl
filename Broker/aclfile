@@ -5,9 +5,13 @@
 # The backend listens for animation events and sends override commands.
 user homecontrol-backend
 topic read entrance/motion
+topic read entrance/motion-triggers
 topic write entrance/override
+topic write entrance/motion-triggers/set
 
 # The Raspberry Pi LED stripe device does the opposite.
 user raspberry
 topic read entrance/override
+topic read entrance/motion-triggers/set
 topic write entrance/motion
+topic write entrance/motion-triggers

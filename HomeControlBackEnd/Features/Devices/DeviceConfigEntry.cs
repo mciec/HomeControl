@@ -20,4 +20,10 @@ public sealed class DeviceConfigEntry
     public string? OverrideTopic { get; set; }
 
     public string? MotionTopic { get; set; }
+
+    /// <summary>Topic the backend publishes "ON"/"OFF" to, to enable/disable motion-triggered animations.</summary>
+    public string? MotionTriggersSetTopic { get; set; }
+
+    /// <summary>Topic the device publishes its current "ON"/"OFF" motion-triggers state to (retained).</summary>
+    public string? MotionTriggersStateTopic { get; set; }
 }

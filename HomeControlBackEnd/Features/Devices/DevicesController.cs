@@ -76,6 +76,35 @@ public sealed class DevicesController : ControllerBase
         return StatusCode(StatusCodes.Status202Accepted);
     }
 
+    [HttpPut("{id}/motion-triggers")]
+    public async Task<IActionResult> PutMotionTriggers(string id, [FromBody] MotionTriggersRequestDto? request, CancellationToken ct)
+    {
+        var config = _registry.GetConfig(id);
+        if (config is null)
+        {
+            return NotFound(new { message = $"Device '{id}' not found." });
+        }
+
+        if (config.Type != DeviceType.LedStripeWithSensors || string.IsNullOrEmpty(config.MotionTriggersSetTopic))
+        {
+            return BadRequest(new { message = $"Device '{id}' does not support enabling or disabling motion triggers." });
+        }
+
+        if (request?.Enabled is not { } enabled)
+        {
+            return BadRequest(new { message = "Enabled must be true or false." });
+        }
+
+        var published = await _publisher.TryPublishMotionTriggersAsync(id, enabled, ct);
+        if (!published)
+        {
+            _logger.LogWarning("Could not publish motion-triggers command for device '{DeviceId}': MQTT broker unavailable.", id);
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = "MQTT broker is currently unavailable. Try again shortly." });
+        }
+
+        return StatusCode(StatusCodes.Status202Accepted);
+    }
+
     private static LedStripeWithSensorsStateDto ToStateDto(LedStripeWithSensorsState state) =>
         LedStripeWithSensorsStateDto.FromState(state);
 }

@@ -10,6 +10,7 @@ public sealed record LedStripeWithSensorsStateDto(
     DateTimeOffset? LastOverrideLeftReceivedUtc,
     DateTimeOffset? LastOverrideRightReceivedUtc,
     CurrentAnimationDto? CurrentAnimation,
+    bool? MotionTriggersEnabled,
     DateTimeOffset ServerTimeUtc)
 {
     /// <summary>Maps a <see cref="LedStripeWithSensorsState"/> snapshot to its DTO shape.
@@ -29,6 +30,7 @@ public sealed record LedStripeWithSensorsStateDto(
                     state.CurrentAnimationSource!.Value,
                     state.CurrentAnimationStartedAtUtc!.Value,
                     state.CurrentAnimationEndsAtUtc!.Value),
+            state.MotionTriggersEnabled,
             DateTimeOffset.UtcNow);
 }
 
@@ -53,3 +55,7 @@ public sealed record DeviceStateChangedMessage(string DeviceId, DeviceType Type,
 /// can be reported with the contracted `{ "message": "..." }` shape instead of the
 /// framework's default validation-problem response.</summary>
 public sealed record OverrideRequestDto(string? Direction);
+
+/// <summary>PUT /api/devices/{id}/motion-triggers request body. Nullable so a missing value can be
+/// reported with the contracted `{ "message": "..." }` shape.</summary>
+public sealed record MotionTriggersRequestDto(bool? Enabled);

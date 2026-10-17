@@ -78,7 +78,7 @@ describe('device components', () => {
       type: 'devices/setSelectedDevice',
       payload: {
         id: 'x', name: 'x', type: 'LedStripeWithSensors',
-        state: { lastOverrideLeftReceivedUtc: null, lastOverrideRightReceivedUtc: null, currentAnimation: null, serverTimeUtc: '2026-10-04T12:00:05.000Z' },
+        state: { lastOverrideLeftReceivedUtc: null, lastOverrideRightReceivedUtc: null, currentAnimation: null, motionTriggersEnabled: true, serverTimeUtc: '2026-10-04T12:00:05.000Z' },
       },
     });
     let tree!: ReturnType<typeof create>;

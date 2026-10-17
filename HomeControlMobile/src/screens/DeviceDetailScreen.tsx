@@ -262,6 +262,7 @@ function DeviceDetailScreen({ route, navigation }: Props) {
                   deviceId={selectedDevice.id}
                   state={selectedDevice.state}
                   onOverrideSent={scheduleRefreshAfterOverride}
+                  onMotionTriggersSent={scheduleRefreshAfterOverride}
                 />
               )}
               <View

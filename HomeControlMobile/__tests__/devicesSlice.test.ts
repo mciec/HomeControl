@@ -21,7 +21,7 @@ function detail(serverTimeUtc: string, currentAnimation: typeof animation | null
     id: 'entrance-led-strip',
     name: 'Entrance LED Strip',
     type: 'LedStripeWithSensors',
-    state: { lastOverrideLeftReceivedUtc: null, lastOverrideRightReceivedUtc: null, currentAnimation, serverTimeUtc },
+    state: { lastOverrideLeftReceivedUtc: null, lastOverrideRightReceivedUtc: null, currentAnimation, motionTriggersEnabled: true, serverTimeUtc },
   };
 }
 

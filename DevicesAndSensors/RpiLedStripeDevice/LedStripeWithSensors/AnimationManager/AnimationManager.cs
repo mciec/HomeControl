@@ -28,6 +28,9 @@ internal sealed class AnimationManager
 
     private const string MessageLeft = "LEFT";
     private const string MessageRight = "RIGHT";
+    private const string MessageOn = "ON";
+    private const string MessageOff = "OFF";
+    private static readonly TimeSpan MotionTriggersStateHeartbeat = TimeSpan.FromSeconds(30);
     private readonly bool _verbose = false;
     private readonly int _frameDurationMs;
     private readonly int _switchOffDelayMs;
@@ -43,6 +46,12 @@ internal sealed class AnimationManager
     private bool MovementRight { get; set; } = false;
     private bool OverrideLeft { get; set; } = false;
     private bool OverrideRight { get; set; } = false;
+
+    // When false, the motion sensors are ignored and animations only run via override.
+    // Persisted so the setting survives a restart of the device.
+    private volatile bool _motionTriggersEnabled = true;
+    private readonly string _motionTriggersStatePath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LedStripeWithSensors", "motion-triggers.txt");
 
     private AnimationState State { get; set; } = AnimationState.Stopped;
     private DateTime AnimationStart { get; set; } = DateTime.Now;
@@ -75,6 +84,11 @@ internal sealed class AnimationManager
         using var motionDetectorLeft = MotionSensor.MotionSensor.CreateSensor(_leftMotionDetectorPin,
             () =>
             {
+                if (!_motionTriggersEnabled)
+                {
+                    _logger.LogInformation("Motion detected: {direction}, ignored (motion triggers disabled)", MessageLeft);
+                    return;
+                }
                 if (IgnoreDetectedMovement())
                 {
                     _logger.LogInformation("Motion detected: {direction}, but it's daylight at {time}", MessageLeft, DateTime.Now.ToShortTimeString());
@@ -101,6 +115,11 @@ internal sealed class AnimationManager
         using var motionDetectorRight = MotionSensor.MotionSensor.CreateSensor(_rightMotionDetectorPin,
             () =>
             {
+                if (!_motionTriggersEnabled)
+                {
+                    _logger.LogInformation("Motion detected: {direction}, ignored (motion triggers disabled)", MessageRight);
+                    return;
+                }
                 if (IgnoreDetectedMovement())
                 {
                     _logger.LogInformation("Motion detected: {direction}, ignored at {time}", MessageRight, DateTime.Now.ToShortTimeString());
@@ -125,8 +144,17 @@ internal sealed class AnimationManager
 
         var animation = _animationFactory.GetRandomAnimation();
 
+        _motionTriggersEnabled = LoadMotionTriggersEnabled();
+        _logger.LogInformation("Motion triggers: {state}", _motionTriggersEnabled ? MessageOn : MessageOff);
+
         _mqttClient.MessageReceived += (sender, args) =>
         {
+            if (args.Topic == _topics.MotionTriggersSetTopic)
+            {
+                HandleMotionTriggersCommand(args.Payload);
+                return;
+            }
+
             if (args.Topic != _topics.OverrideTopic)
                 return;
 
@@ -145,11 +173,21 @@ internal sealed class AnimationManager
             }
         };
 
-        _mqttClient.Connect(new[] { _topics.OverrideTopic }, ct);
+        _mqttClient.Connect(new[] { _topics.OverrideTopic, _topics.MotionTriggersSetTopic }, ct);
+
+        var nextStatePublish = DateTime.MinValue;
 
         while (!ct.IsCancellationRequested)
         {
             now = DateTime.Now;
+
+            // Republished periodically (not only on change) so a restarted backend/broker, which lose
+            // the retained message, learn the current state again.
+            if (now >= nextStatePublish)
+            {
+                PublishMotionTriggersState();
+                nextStatePublish = now + MotionTriggersStateHeartbeat;
+            }
 
             if (OverrideLeft)
             {
@@ -182,6 +220,14 @@ internal sealed class AnimationManager
                 }
                 animation.Stop();
                 PublishAnimationEvent(AnimationEventType.Stopped, AnimationDirectionFromState, AnimationSource.Override, animation.Name);
+                State = AnimationState.Stopped;
+            }
+
+            if (!_motionTriggersEnabled
+                && (State == AnimationState.MovementLeftRunning || State == AnimationState.MovementRightRunning))
+            {
+                animation.Stop();
+                PublishAnimationEvent(AnimationEventType.Stopped, AnimationDirectionFromState, AnimationSource.Motion, animation.Name);
                 State = AnimationState.Stopped;
             }
 
@@ -223,6 +269,58 @@ internal sealed class AnimationManager
             }
         }
     }
+
+    private void HandleMotionTriggersCommand(string payload)
+    {
+        switch (payload.Trim().ToUpperInvariant())
+        {
+            case MessageOn:
+                _motionTriggersEnabled = true;
+                break;
+            case MessageOff:
+                _motionTriggersEnabled = false;
+                MovementLeft = false;
+                MovementRight = false;
+                break;
+            default:
+                _logger.LogWarning("Ignoring unrecognized motion triggers command '{payload}'", payload);
+                return;
+        }
+
+        _logger.LogInformation("Motion triggers set to {state}", _motionTriggersEnabled ? MessageOn : MessageOff);
+        SaveMotionTriggersEnabled(_motionTriggersEnabled);
+        PublishMotionTriggersState();
+    }
+
+    private bool LoadMotionTriggersEnabled()
+    {
+        try
+        {
+            return !File.Exists(_motionTriggersStatePath)
+                || !string.Equals(File.ReadAllText(_motionTriggersStatePath).Trim(), MessageOff, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not read {path}; motion triggers default to enabled", _motionTriggersStatePath);
+            return true;
+        }
+    }
+
+    private void SaveMotionTriggersEnabled(bool enabled)
+    {
+        try
+        {
+            Directory.CreateDirectory(Path.GetDirectoryName(_motionTriggersStatePath)!);
+            File.WriteAllText(_motionTriggersStatePath, enabled ? MessageOn : MessageOff);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Could not persist motion triggers state to {path}", _motionTriggersStatePath);
+        }
+    }
+
+    private void PublishMotionTriggersState() =>
+        _mqttClient.Publish(_topics.MotionTriggersStateTopic, _motionTriggersEnabled ? MessageOn : MessageOff, retain: true);
 
     private static bool IsDayLight(DateTime dateTime)
     {

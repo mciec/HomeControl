@@ -15,4 +15,11 @@ public interface IDeviceCommandPublisher
     /// only means the publish attempt was made while connected, not that the device acted on it.
     /// </summary>
     Task<bool> TryPublishOverrideAsync(string deviceId, OverrideDirection direction, CancellationToken ct);
+
+    /// <summary>
+    /// Attempts to publish a command enabling or disabling motion-triggered animations on the
+    /// device. Same semantics and false conditions as <see cref="TryPublishOverrideAsync"/>. The
+    /// device confirms by publishing its new state, which is what updates the registry.
+    /// </summary>
+    Task<bool> TryPublishMotionTriggersAsync(string deviceId, bool enabled, CancellationToken ct);
 }

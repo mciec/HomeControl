@@ -24,6 +24,9 @@ export interface LedStripeWithSensorsState {
   lastOverrideLeftReceivedUtc: string | null;
   lastOverrideRightReceivedUtc: string | null;
   currentAnimation: CurrentAnimation | null;
+  // Whether the motion detectors may start animations (false = override only).
+  // null until the device has reported it, e.g. right after a backend restart.
+  motionTriggersEnabled: boolean | null;
   // Server's clock at the moment this state was produced. Clients derive their
   // offset from it (serverTimeUtc - Date.now()) and evaluate startedAtUtc /
   // endsAtUtc against server time rather than their own, possibly skewed, clock.
@@ -57,5 +60,9 @@ export const devicesService = {
 
   sendOverride: async (id: string, direction: OverrideDirection): Promise<void> => {
     await apiClient.post(`/devices/${id}/override`, { direction });
+  },
+
+  setMotionTriggers: async (id: string, enabled: boolean): Promise<void> => {
+    await apiClient.put(`/devices/${id}/motion-triggers`, { enabled });
   },
 };

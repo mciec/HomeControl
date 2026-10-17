@@ -8,7 +8,7 @@ copies the result into the runtime image next to the published backend.
 |---|---|
 | `entrypoint.sh` | Container entrypoint. If `BROKER_BACKEND_PASSWORD` and `BROKER_DEVICE_PASSWORD` are set: writes the password file (`/run/mosquitto/passwd`, hashed, never persisted), starts Mosquitto, points the backend at it (`Mqtt__*`, `Broker__WebSocketTarget`). Then runs the backend. If either process dies the container exits and is restarted. Without those variables no broker is started and the backend uses whatever external broker its `Mqtt__*` settings name. |
 | `mosquitto.conf` | Two **loopback-only** listeners: `1883` (MQTT, used by the backend) and `9001` (MQTT over WebSocket). Password-file + ACL-file plugins, anonymous access off, no persistence. |
-| `aclfile` | Who may do what: `homecontrol-backend` reads `entrance/motion`, writes `entrance/override`; `raspberry` the reverse. Everything else is denied. |
+| `aclfile` | Who may do what: `homecontrol-backend` reads `entrance/motion` and `entrance/motion-triggers`, writes `entrance/override` and `entrance/motion-triggers/set`; `raspberry` the reverse. Everything else is denied. |
 
 ## How clients connect
 

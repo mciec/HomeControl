@@ -561,6 +561,29 @@ code {
   color: var(--hc-muted);
 }
 
+/* ---------- Motion triggers switch ---------- */
+.motion-switch {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.06);
+  border: 1px solid var(--hc-border);
+}
+.motion-switch .form-check {
+  margin: 0;
+}
+.motion-switch__status {
+  color: var(--hc-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.motion-switch__status[data-on='true'] {
+  color: #34d399;
+}
+
 /* ---------- Override controls ---------- */
 .override-btn {
   display: flex;

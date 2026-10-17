@@ -57,14 +57,16 @@ public sealed class DeviceMqttListenerService : BackgroundService, IDeviceComman
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var motionTopics = _registry.GetAll()
-            .Where(d => d.Type == DeviceType.LedStripeWithSensors && !string.IsNullOrEmpty(d.MotionTopic))
-            .Select(d => d.MotionTopic!)
+        var topics = _registry.GetAll()
+            .Where(d => d.Type == DeviceType.LedStripeWithSensors)
+            .SelectMany(d => new[] { d.MotionTopic, d.MotionTriggersStateTopic })
+            .Where(t => !string.IsNullOrEmpty(t))
+            .Select(t => t!)
             .Distinct(StringComparer.Ordinal)
             .ToList();
 
-        _logger.LogInformation("Starting MQTT client, subscribing to {count} motion topic(s).", motionTopics.Count);
-        _mqttClient.Connect(motionTopics, stoppingToken);
+        _logger.LogInformation("Starting MQTT client, subscribing to {count} device topic(s).", topics.Count);
+        _mqttClient.Connect(topics, stoppingToken);
 
         try
         {
@@ -81,6 +83,14 @@ public sealed class DeviceMqttListenerService : BackgroundService, IDeviceComman
     private void OnMqttMessageReceived(object? sender, MqttMessageReceivedEventArgs args)
     {
         var receivedAt = DateTimeOffset.UtcNow;
+
+        var stateDevice = _registry.GetByMotionTriggersStateTopic(args.Topic);
+        if (stateDevice is not null)
+        {
+            OnMotionTriggersStateReceived(stateDevice, args.Payload, receivedAt);
+            return;
+        }
+
         var device = _registry.GetByMotionTopic(args.Topic);
         if (device is null)
             return;
@@ -152,6 +162,31 @@ public sealed class DeviceMqttListenerService : BackgroundService, IDeviceComman
         _ = BroadcastAsync(message, receivedAt);
     }
 
+    private void OnMotionTriggersStateReceived(DeviceConfigEntry device, string payload, DateTimeOffset receivedAt)
+    {
+        bool enabled;
+        switch (payload.Trim().ToUpperInvariant())
+        {
+            case "ON":
+                enabled = true;
+                break;
+            case "OFF":
+                enabled = false;
+                break;
+            default:
+                _logger.LogDebug("Ignoring unrecognized motion-triggers state '{Payload}' for device '{DeviceId}'.", payload, device.Id);
+                return;
+        }
+
+        var newState = _registry.ApplyMotionTriggersState(device.Id, enabled);
+        if (newState is null)
+            return;
+
+        _ = BroadcastAsync(
+            new DeviceStateChangedMessage(device.Id, device.Type, LedStripeWithSensorsStateDto.FromState(newState)),
+            receivedAt);
+    }
+
     private async Task BroadcastAsync(DeviceStateChangedMessage message, DateTimeOffset receivedAt)
     {
         try
@@ -179,6 +214,22 @@ public sealed class DeviceMqttListenerService : BackgroundService, IDeviceComman
             return false;
         }
 
+        return await TryPublishAsync(device.OverrideTopic, direction.ToString().ToUpperInvariant(), ct).ConfigureAwait(false);
+    }
+
+    public async Task<bool> TryPublishMotionTriggersAsync(string deviceId, bool enabled, CancellationToken ct)
+    {
+        var device = _registry.GetConfig(deviceId);
+        if (device is null || device.Type != DeviceType.LedStripeWithSensors || string.IsNullOrEmpty(device.MotionTriggersSetTopic))
+        {
+            return false;
+        }
+
+        return await TryPublishAsync(device.MotionTriggersSetTopic, enabled ? "ON" : "OFF", ct).ConfigureAwait(false);
+    }
+
+    private async Task<bool> TryPublishAsync(string topic, string payload, CancellationToken ct)
+    {
         var deadline = DateTime.UtcNow + BrokerConnectWait;
         while (!_mqttClient.IsConnected)
         {
@@ -190,7 +241,7 @@ public sealed class DeviceMqttListenerService : BackgroundService, IDeviceComman
             await Task.Delay(250, ct).ConfigureAwait(false);
         }
 
-        _mqttClient.Publish(device.OverrideTopic, direction.ToString().ToUpperInvariant());
+        _mqttClient.Publish(topic, payload);
         return true;
     }
 }

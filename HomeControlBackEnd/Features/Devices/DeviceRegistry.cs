@@ -13,6 +13,7 @@ public sealed class DeviceRegistry
 {
     private readonly Dictionary<string, DeviceConfigEntry> _devicesById;
     private readonly Dictionary<string, DeviceConfigEntry> _devicesByMotionTopic;
+    private readonly Dictionary<string, DeviceConfigEntry> _devicesByMotionTriggersStateTopic;
     private readonly ConcurrentDictionary<string, LedStripeWithSensorsState> _ledStripeStates = new();
 
     public DeviceRegistry(IOptions<List<DeviceConfigEntry>> devicesOptions)
@@ -24,6 +25,10 @@ public sealed class DeviceRegistry
         _devicesByMotionTopic = devices
             .Where(d => !string.IsNullOrEmpty(d.MotionTopic))
             .ToDictionary(d => d.MotionTopic!, StringComparer.Ordinal);
+
+        _devicesByMotionTriggersStateTopic = devices
+            .Where(d => !string.IsNullOrEmpty(d.MotionTriggersStateTopic))
+            .ToDictionary(d => d.MotionTriggersStateTopic!, StringComparer.Ordinal);
 
         foreach (var device in devices)
         {
@@ -40,6 +45,23 @@ public sealed class DeviceRegistry
 
     /// <summary>Looks up the device whose MotionTopic matches the given MQTT topic, if any.</summary>
     public DeviceConfigEntry? GetByMotionTopic(string topic) => _devicesByMotionTopic.GetValueOrDefault(topic);
+
+    /// <summary>Looks up the device whose MotionTriggersStateTopic matches the given MQTT topic, if any.</summary>
+    public DeviceConfigEntry? GetByMotionTriggersStateTopic(string topic) => _devicesByMotionTriggersStateTopic.GetValueOrDefault(topic);
+
+    /// <summary>Records the motion-triggers state reported by a device and returns a snapshot of the
+    /// resulting state (or null if the device is unknown or is not of that type).</summary>
+    public LedStripeWithSensorsState? ApplyMotionTriggersState(string id, bool enabled)
+    {
+        if (!_ledStripeStates.TryGetValue(id, out var state))
+            return null;
+
+        lock (state)
+        {
+            state.MotionTriggersEnabled = enabled;
+            return Snapshot(state);
+        }
+    }
 
     /// <summary>Returns a point-in-time copy of the device's LedStripeWithSensors state, or null
     /// if the device is unknown or is not of that type.</summary>
@@ -118,6 +140,7 @@ public sealed class DeviceRegistry
     {
         LastOverrideLeftReceivedUtc = state.LastOverrideLeftReceivedUtc,
         LastOverrideRightReceivedUtc = state.LastOverrideRightReceivedUtc,
+        MotionTriggersEnabled = state.MotionTriggersEnabled,
         CurrentAnimationName = state.CurrentAnimationName,
         CurrentAnimationDirection = state.CurrentAnimationDirection,
         CurrentAnimationSource = state.CurrentAnimationSource,

@@ -74,7 +74,7 @@ public sealed class MqttClient : IAsyncDisposable
         return this;
     }
 
-    public void Publish(string topic, string message)
+    public void Publish(string topic, string message, bool retain = false)
     {
         if (_channelManagerWithRecovery is null)
             throw new Exception("Channel manager not created");
@@ -84,7 +84,9 @@ public sealed class MqttClient : IAsyncDisposable
             Delegate = async (CancellationToken ct) =>
             {
                 _logger.LogInformation("Sending message: {message} to topic: {topic}", message, topic);
-                var result = await _client.PublishAsync(topic, message).ConfigureAwait(false);
+                var result = retain
+                    ? await _client.PublishAsync(new PublishMessageBuilder().WithTopic(topic).WithPayload(message).WithRetain(true).Build()).ConfigureAwait(false)
+                    : await _client.PublishAsync(topic, message).ConfigureAwait(false);
                 return true;
             },
             ExpirationDate = DateTime.UtcNow.AddSeconds(10)

@@ -1,8 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Row, Col, Card } from 'react-bootstrap';
 import { devicesService, type LedStripeWithSensorsState, type OverrideDirection } from '../../services/devicesApi';
 import OverrideControl from './OverrideControl';
+import MotionTriggersSwitch from './MotionTriggersSwitch';
+
+// How long a requested motion-triggers change may stay unconfirmed before the switch falls back
+// to the device's reported state.
+const MOTION_TRIGGERS_CONFIRM_TIMEOUT_MS = 6000;
 
 interface LedStripeWithSensorsDetailProps {
   deviceId: string;
@@ -22,6 +27,35 @@ function LedStripeWithSensorsDetail({ deviceId, state }: LedStripeWithSensorsDet
   const [leftError, setLeftError] = useState<string | null>(null);
   const [rightError, setRightError] = useState<string | null>(null);
 
+  const [motionRequested, setMotionRequested] = useState<boolean | null>(null);
+  const [motionError, setMotionError] = useState<string | null>(null);
+
+  // The change is confirmed once the device reports the requested state (pushed over SignalR).
+  useEffect(() => {
+    if (motionRequested === null) return;
+    if (state.motionTriggersEnabled === motionRequested) {
+      setMotionRequested(null);
+      return;
+    }
+    const timer = setTimeout(() => setMotionRequested(null), MOTION_TRIGGERS_CONFIRM_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [motionRequested, state.motionTriggersEnabled]);
+
+  const handleMotionTriggers = async (enabled: boolean) => {
+    setMotionRequested(enabled);
+    setMotionError(null);
+    try {
+      await devicesService.setMotionTriggers(deviceId, enabled);
+    } catch (err) {
+      setMotionRequested(null);
+      setMotionError(
+        axios.isAxiosError(err) && typeof err.response?.data?.message === 'string'
+          ? err.response.data.message
+          : 'Failed to change motion detectors setting'
+      );
+    }
+  };
+
   const handleOverride = async (direction: OverrideDirection) => {
     const setLoading = direction === 'Left' ? setLeftLoading : setRightLoading;
     const setError = direction === 'Left' ? setLeftError : setRightError;
@@ -39,6 +73,15 @@ function LedStripeWithSensorsDetail({ deviceId, state }: LedStripeWithSensorsDet
 
   return (
     <Card.Body>
+      <div className="section-label">Motion detectors</div>
+      <div className="mb-4">
+        <MotionTriggersSwitch
+          enabled={motionRequested ?? state.motionTriggersEnabled}
+          pending={motionRequested !== null}
+          error={motionError}
+          onChange={handleMotionTriggers}
+        />
+      </div>
       <div className="section-label">Manual override</div>
       <Row className="gy-2">
         <Col xs={12} md={6}>

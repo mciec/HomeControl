@@ -23,6 +23,10 @@ it stamps the animation with its own clock on receipt, so the Pi's (RTC-less) cl
 There's also a separate MQTT topic for running the animation on demand - the web/mobile apps publish
 "LEFT" or "RIGHT" to it via the backend:
 "OverrideTopic": "entrance/override"
+Motion-triggered animations can be switched off from the apps, leaving override as the only way to run them. The
+backend publishes "ON"/"OFF" to "MotionTriggersSetTopic" (entrance/motion-triggers/set); the device saves the choice in
+~/.local/share/LedStripeWithSensors/motion-triggers.txt (default ON) and reports it, retained and every 30 s, on
+"MotionTriggersStateTopic" (entrance/motion-triggers).
 The MQTT section of the device's appsettings is called "MqttConfig" (the backend's is "Mqtt"); give each program its own
 ClientId - a broker allows one connection per ClientId.
 The broker is Mosquitto running inside the HomeControl container in Azure; the device reaches it as MQTT over a secure

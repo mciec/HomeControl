@@ -11,6 +11,10 @@ public sealed class LedStripeWithSensorsState
 
     public DateTimeOffset? LastOverrideRightReceivedUtc { get; set; }
 
+    /// <summary>Whether the motion sensors may start animations. Null until the device has
+    /// reported it (the device is the source of truth and publishes it retained + periodically).</summary>
+    public bool? MotionTriggersEnabled { get; set; }
+
     /// <summary>The five CurrentAnimation* fields are all null together when idle, and all
     /// set together while an animation is running.</summary>
     public string? CurrentAnimationName { get; set; }
